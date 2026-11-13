@@ -1,17 +1,23 @@
 {
   "expo": {
-    "name": "app",
-    "slug": "app",
+    "name": "Words & Waffles",
+    "slug": "words-and-waffles",
+    "scheme": "wordsandwaffles",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "app.wordsandwaffles",
+      "supportsTablet": true,
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "app.wordsandwaffles",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#e6edf8",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -19,6 +25,10 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
+      "name": "Words & Waffles",
+      "shortName": "Waffles",
+      "themeColor": "#e6edf8",
+      "backgroundColor": "#e6edf8",
       "favicon": "./assets/favicon.png"
     },
     "plugins": [

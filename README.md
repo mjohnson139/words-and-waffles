@@ -4,9 +4,9 @@ A cosy daily word game. No accounts, no trackers.
 
 [![CI](https://github.com/mjohnson139/words-and-waffles/actions/workflows/ci.yml/badge.svg)](https://github.com/mjohnson139/words-and-waffles/actions/workflows/ci.yml)
 
-<!-- Screenshot or GIF of a game being won goes here (step S2). -->
+<img src="docs/images/play-won.png" width="320" alt="A won game on a phone-sized screen: the board shows the day's word in green under a wrong first guess, with the line Two bites. Showing off before coffee.">
 
-**Play it:** the live web app link goes here once it is deployed (step S2).
+**Play it:** [words-and-waffles.pages.dev](https://words-and-waffles.pages.dev). Works in any browser, and after the first visit it plays offline.
 
 ## What it is
 
@@ -17,7 +17,7 @@ Guess the five-letter word of the day in six tries; each guess shows which lette
 - **Counted:** at most once a day the app tells our server "someone opened the game today" plus four yes/no flags (first open this week, this month, ever) and the platform. No ID of any kind. The server adds one to a few counters and stores nothing else.
 - **Never collected:** names, accounts, device IDs, IP addresses, user agents, cookies, locations, or your games. There are no analytics, ad or crash-reporting SDKs.
 - **Your games** stay on your device. Back up exports a file you keep wherever you like.
-- **Public numbers:** every count is on the public `/stats` page of the word server (link added at deploy).
+- **Public numbers:** every count is on the word server's public [stats page](https://words-and-waffles.mjohnson139.workers.dev/stats).
 - You can turn the ping off in the Stats tab. Full details: [PRIVACY.md](PRIVACY.md).
 
 ## Run it locally

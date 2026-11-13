@@ -33,7 +33,20 @@
     },
     "plugins": [
       "expo-font",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#e6edf8",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#171b30"
+          }
+        }
+      ]
     ]
   }
 }

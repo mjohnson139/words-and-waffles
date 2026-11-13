@@ -41,6 +41,7 @@ export const dark = {
   waffleEdge: '#d69a3c',
   syrup: '#eab56c',
   berry: '#9aa8ff',
+  hit: '#48a864',
   onBerry: '#141831',
 };
 

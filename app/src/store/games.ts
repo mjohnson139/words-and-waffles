@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { cleanAll, type GameRecord } from '../game/record';
+import { restoreInto } from './backupFormat';
 import { readJSON, writeJSON } from './storage';
 
 export const GAMES_KEY = 'ww:games';
@@ -45,6 +46,15 @@ export function useGames() {
 
   const saveGame = useCallback((g: GameRecord) => commit({ ...latest.current, [g.id]: g }), [commit]);
   const replaceAll = useCallback((all: Games) => commit(all), [commit]);
+  // Merge against the latest state, not a snapshot taken before a file picker opened.
+  const restore = useCallback(
+    (incoming: Games) => {
+      const { games: merged, added, updated } = restoreInto(latest.current, incoming);
+      if (added || updated) commit(merged);
+      return { added, updated };
+    },
+    [commit],
+  );
 
-  return { ready, games, saveGame, replaceAll };
+  return { ready, games, saveGame, replaceAll, restore };
 }

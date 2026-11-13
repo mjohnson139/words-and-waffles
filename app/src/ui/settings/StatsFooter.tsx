@@ -4,9 +4,9 @@ import { Linking, Pressable, Switch, Text, TextInput, View } from 'react-native'
 import { type GameRecord } from '../../game/record';
 import { PING_ENDPOINT, WORD_ENDPOINT } from '../../config';
 import { exportBackup, pickBackupText } from '../../store/backup';
-import { parseBackup, restoreInto } from '../../store/backupFormat';
-import { useSettings } from '../../store/settings';
-import { isEndpointUrl } from '../../store/settingsRules';
+import { parseBackup } from '../../store/backupFormat';
+
+import { isEndpointUrl, type Settings } from '../../store/settingsRules';
 import { Card, Note } from '../stats/Card';
 import { useTheme } from '../theme';
 
@@ -58,9 +58,16 @@ function LinkText({ label, onPress }: { label: string; onPress: () => void }) {
   );
 }
 
-export function StatsFooter({ games, replaceAll }: { games: Games; replaceAll: (g: Games) => void }) {
+interface Props {
+  games: Games;
+  /** Merges incoming games into the latest stored ones (by rank) and reports the counts. */
+  restore: (incoming: Games) => { added: number; updated: number };
+  settings: Settings;
+  update: (partial: Partial<Settings>) => void;
+}
+
+export function StatsFooter({ games, restore: restoreGames, settings, update }: Props) {
   const t = useTheme();
-  const { settings, update } = useSettings();
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -84,8 +91,7 @@ export function StatsFooter({ games, replaceAll }: { games: Games; replaceAll: (
     if (text === null) return setStatus('Nothing restored.');
     const parsed = parseBackup(text);
     if (!parsed.ok) return setStatus(parsed.error);
-    const { games: merged, added, updated } = restoreInto(games, parsed.games);
-    if (added || updated) replaceAll(merged);
+    const { added, updated } = restoreGames(parsed.games);
     setStatus(`Restored: ${added} new, ${updated} updated.`);
   };
 

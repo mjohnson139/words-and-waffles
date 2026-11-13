@@ -28,7 +28,8 @@ interface Props {
   saveGame: (g: GameRecord) => void;
   ready: boolean;
   /** The server's word for today (wired in step N1); defaults to the bundled word. */
-  dailyAnswer?: { answer: string; source: Source };
+  /** The day's word from the endpoint (or bundled); used only when its date is today. */
+  dailyAnswer?: { date: string; answer: string; source: Source };
 }
 
 const NO_MARKS: Record<string, Mark> = {};
@@ -79,7 +80,9 @@ export function PlayScreen({ games, saveGame, ready, dailyAnswer }: Props) {
     setReveal(null);
     setHop(null);
     setMode(m);
-    setPlay({ game: resume(games, m, today(), Math.random, Date.now(), dailyAnswer), typed: '' });
+    const date = today();
+    const daily = dailyAnswer?.date === date ? dailyAnswer : undefined;
+    setPlay({ game: resume(games, m, date, Math.random, Date.now(), daily), typed: '' });
   };
 
   // Saved games arrive after the first render; the server's word may arrive later still.

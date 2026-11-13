@@ -18,4 +18,11 @@ Checks: `npm run verify -w worker` (typecheck, lint, tests on real D1 via Minifl
 
 ## Deploy
 
-Left for step S1: create the D1 database, put its id in `wrangler.toml`, `wrangler secret put WORD_SECRET`, apply migrations remotely, deploy.
+Deploys run from `main` only, through `.github/workflows/deploy.yml`. One-time setup (D1 database, Pages project, API token) is in [docs/deploy.md](../docs/deploy.md).
+
+The workflow reads these GitHub settings (no secrets live in the repo):
+
+- Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
+- Variables: `WORD_ENDPOINT`, `PING_ENDPOINT` (public Worker URLs baked into the web build), optional `PAGES_PROJECT` (defaults to `words-and-waffles`)
+
+The Worker's own secret is set once with `npx wrangler secret put WORD_SECRET` (run from `worker/`); never put it in `wrangler.toml`.

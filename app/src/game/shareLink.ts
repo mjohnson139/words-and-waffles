@@ -64,3 +64,13 @@ export function openShared(
   }
   return { game: newGame(id, 'custom', date, link.word, 'local'), toast: 'A friend picked this one. Go!' };
 }
+
+/** What a '#w=' fragment opens: the shared game, or null (show Today) with the toast to say. */
+export function resolveLink(
+  games: Record<string, GameRecord>,
+  fragment: string,
+  date: string,
+): { game: GameRecord | null; toast: string } {
+  const shared = parseShareLink(fragment);
+  return shared ? openShared(games, shared, date) : { game: null, toast: BAD_LINK };
+}

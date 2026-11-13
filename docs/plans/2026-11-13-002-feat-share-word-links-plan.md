@@ -49,7 +49,7 @@ The share action uses the platform's share sheet where there is one (`navigator.
 |---|---|---|---|
 | 1 | This plan | orchestrator | `docs/plans/2026-11-13-002-feat-share-word-links-plan.md` |
 | 2 | Pure link module and tests | `implementer` | `app/src/game/shareLink.ts`, `app/src/game/__tests__/shareLink.test.ts` |
-| 3 | UI: share buttons, fragment handling, `EXPO_PUBLIC_SITE_URL` | orchestrator (the brief would be as long as the code) | `App.tsx`, `src/config.ts`, `src/ui/share.ts` (+ `.web.ts`), `src/ui/useShareLink.ts`, `PlayScreen.tsx`, `PickWord.tsx`, `ResultCard.tsx` |
+| 3 | UI: share buttons, fragment handling, `EXPO_PUBLIC_SITE_URL` | orchestrator (the brief would be as long as the code) | `App.tsx`, `src/config.ts`, `src/ui/shareWord.ts`, `PlayScreen.tsx`, `PickWord.tsx`, `ResultCard.tsx` |
 | 4 | e2e | `implementer`, after 2 and 3 | `app/e2e/share.spec.ts` |
 | 5 | README and store copy | `mechanic` | `README.md`, `docs/store-listing.md` |
 
@@ -74,12 +74,19 @@ export const shareMessage: (url: string) => string;
 export function openShared(games: Record<string, GameRecord>, link: SharedWord, date: string): { game: GameRecord; toast: string };
 export const BAD_LINK: string;
 export const LINK_COPIED: string;
+/** Added in review: the whole decision for a fragment (good link -> openShared, bad -> null game + BAD_LINK). */
+export function resolveLink(games: Record<string, GameRecord>, fragment: string, date: string): { game: GameRecord | null; toast: string };
 ```
 
 ## Tests
 
 - Unit: round trip over every answer word; a tampered cell; wrong lengths (salt, cells, count); upper case and whitespace; a leading `#`; an unknown version; an unrelated fragment (`stats`, `w=`, empty); `openShared` new / in progress / finished / same salt but different answer.
 - e2e (`app/e2e/share.spec.ts`): the Pick card's Share link copies a link (clipboard read in the page); opening it in a fresh context plays that word and wins; reopening after the win shows the result, not a new game; a bad fragment falls back to Today with the toast; the fragment is cleared after opening; no request carries `w=`; the third-party-host tripwire holds.
+
+## Accepted risks (from review)
+
+- A crafted link that reuses another link's salt with a different word gets the same id `c-<salt>`, so its first guess replaces that saved game. Random 48-bit salts never collide by chance, and the only player who can hurt is the one who opened the crafted link.
+- The e2e check that no request carries `w=1.` is a tripwire against a future move to a query string; browsers never send fragments.
 
 ## Not in F1
 

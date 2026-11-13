@@ -3,11 +3,13 @@ import { ANSWERS } from '../answers';
 import { encodeCells } from '../cells';
 import { newGame } from '../play';
 import {
+  BAD_LINK,
   encodeShareLink,
   isShareFragment,
   newShareSalt,
   openShared,
   parseShareLink,
+  resolveLink,
   shareUrl,
 } from '../shareLink';
 
@@ -127,5 +129,27 @@ describe('openShared', () => {
     expect(game.answer).toBe('crane');
     expect(game.guesses).toEqual([]);
     expect(toast).toBe('A friend picked this one. Go!');
+  });
+});
+
+describe('resolveLink', () => {
+  const salt = 'abcdef012345';
+  const link = encodeShareLink('crane', salt);
+  it('opens a good link as a new picked game', () => {
+    const r = resolveLink({}, '#' + link, '2026-11-13');
+    expect(r.game?.answer).toBe('crane');
+    expect(r.game?.id).toBe('c-' + salt);
+    expect(r.toast).toBe('A friend picked this one. Go!');
+  });
+  it('resumes the same link in progress', () => {
+    const first = resolveLink({}, link, '2026-11-13').game!;
+    const games = { [first.id]: { ...first, guesses: ['about'], startedAt: 1 } };
+    const r = resolveLink(games, link, '2026-11-14');
+    expect(r.game?.guesses).toEqual(['about']);
+    expect(r.toast).toBe("Back to your friend's word.");
+  });
+  it('sends a bad link to Today', () => {
+    expect(resolveLink({}, '#w=junk', '2026-11-13')).toEqual({ game: null, toast: BAD_LINK });
+    expect(resolveLink({}, link.slice(0, -1) + (link.endsWith('0') ? '1' : '0'), '2026-11-13').game).toBeNull();
   });
 });

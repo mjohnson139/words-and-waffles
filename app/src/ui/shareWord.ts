@@ -20,8 +20,12 @@ export async function shareWord(word: string): Promise<string | null> {
   const message = shareMessage(shareUrl(linkBase(), encodeShareLink(word, newShareSalt(Math.random))));
   try {
     if (Platform.OS !== 'web') {
-      await Share.share({ message });
-      return null;
+      try {
+        await Share.share({ message });
+        return null;
+      } catch {
+        return "Couldn't open the share sheet.";
+      }
     }
     if (typeof navigator.share === 'function') {
       try {

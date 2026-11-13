@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type PlayState, pickGame, press } from '../../game/play';
 import type { GameRecord, Mode, Source } from '../../game/record';
 import { type Mark, keyMarks } from '../../game/score';
-import { BAD_LINK, openShared, parseShareLink } from '../../game/shareLink';
+import { resolveLink } from '../../game/shareLink';
 import { streaks } from '../../game/stats';
 import * as haptics from '../haptics';
 import { fit } from '../fit';
@@ -131,15 +131,15 @@ export function PlayScreen({ games, saveGame, ready, date, dailyAnswer, link, on
   // a bad link shows Today.
   const openLink = useEffectEvent(() => {
     if (!ready || !link) return;
-    const shared = parseShareLink(link.fragment);
-    const opened = shared ? openShared(games, shared, date) : null;
-    if (opened) show('custom', opened.game);
+    const { game, toast } = resolveLink(games, link.fragment, date);
+    if (game) show('custom', game);
     else load('daily');
-    say(opened?.toast ?? BAD_LINK);
+    say(toast);
     onLink();
   });
   useEffect(() => {
     // The link arrives from outside React (the URL) and is applied exactly once, then cleared.
+    // The rule fires on the toast (say) inside openLink; the sibling reload effects don't toast.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     openLink();
   }, [ready, link?.id]);

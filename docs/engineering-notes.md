@@ -34,6 +34,12 @@ The current architecture map and the invariants that are easy to break. Read the
 3. The answer reaches Play tagged with its date. Play only builds a new daily game from an answer whose date is today, so after midnight it waits for the new day's word instead of reusing yesterday's. A saved daily game always keeps its own answer.
 4. The ping (`usePingOnOpen`) also waits for settings, so an opted-out player never sends one, and runs again when the date changes; `maybePing` dedupes per local day from stored state.
 
+## Share links (F1)
+
+- A shared word travels only in the URL fragment, `#w=1.<salt>.<cells>` (`src/game/shareLink.ts`), so it never reaches a server, a log or the service worker's cache key. Never move it to a query string.
+- `App.tsx` notices the fragment (launch or `hashchange`) and replaces it with `#play`; `PlayScreen` opens it with `resolveLink` once games are loaded. The game id is `c-<salt>`, so the same link reopens the same game.
+- Links point at `location` on web and at `EXPO_PUBLIC_SITE_URL` on native; empty hides the share buttons. Opening links in the installed apps (universal links) is not built yet.
+
 ## Testing layers
 
 - **Unit (Vitest, node):** everything in `src/game/`, plus pure helpers next to screens (`src/ui/**/*.ts`), the API clients with a fake `fetch` and an in-memory AsyncStorage mock, and `worker/test/` on real D1 in Miniflare.

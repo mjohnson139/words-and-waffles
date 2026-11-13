@@ -1,0 +1,16 @@
+name = "words-and-waffles"
+main = "src/index.ts"
+compatibility_date = "2026-08-22"
+
+[observability]
+enabled = false
+
+# The database_id below is a placeholder (not a secret). The owner replaces it
+# with the id printed by `npx wrangler d1 create words-and-waffles` (step S1).
+[[d1_databases]]
+binding = "DB"
+database_name = "words-and-waffles"
+database_id = "REPLACE-WITH-D1-DATABASE-ID"
+migrations_dir = "migrations"
+
+# WORD_SECRET is a secret: `npx wrangler secret put WORD_SECRET`. Never put it here.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { barPercent } from '../distribution';
+import { barPercent } from '../bars';
 
 describe('barPercent', () => {
   it('scales to the largest value', () => {

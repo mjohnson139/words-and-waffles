@@ -4,7 +4,7 @@ import { Animated, Easing, Text, View } from 'react-native';
 import { useTheme } from '../theme';
 import { useReducedMotion } from '../useReducedMotion';
 import { Card } from './Card';
-import { barPercent } from './distribution';
+import { barPercent } from './bars';
 
 function Row({ label, value, max }: { label: string; value: number; max: number }) {
   const t = useTheme();

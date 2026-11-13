@@ -35,7 +35,8 @@ export default function App() {
   const date = useToday();
   const endpoint = settings.wordEndpointOverride || WORD_ENDPOINT;
   // Wait for settings so an override (or none) decides the one word request.
-  const daily = useDailyWord(date, settingsReady ? endpoint : '');
+  const hasGuesses = (games['d-' + date]?.guesses.length ?? 0) > 0;
+  const daily = useDailyWord(date, settingsReady ? endpoint : '', hasGuesses);
   usePingOnOpen(PING_ENDPOINT, settings.pingEnabled, settingsReady, date);
 
   // Web: mirror the tab to location.hash both ways (prototype lines 578-585).

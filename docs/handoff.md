@@ -45,7 +45,7 @@ Rules: logic in pure, node-tested modules; no new dependency without a reason in
 
 ## Next step: 🛑 A, the owner deploys
 
-**If a session starts before 🛑 A is done** (no Cloudflare secrets in the repo and no owner comment saying it is deployed): do not wait. Fix deferred finding 5 below (retry a failed cold-start word fetch on app foreground while today's game has no guesses; pure decision logic with tests, an e2e test that aborts the first request and serves the second), review it, push, and stop.
+**If a session starts before 🛑 A is done** (no Cloudflare secrets and no owner comment saying it is deployed): do not wait for it. Pick the smallest open item from "Open questions" that needs no owner decision, or improve test coverage of an untested path; otherwise stop and say the deploy is pending.
 
 Everything up to the deploy is built and tested in the cloud: 142 app unit tests, 17 Worker tests on real D1, 15 Playwright tests against the web export (including offline after one visit and a third-party-host tripwire), web bundle ~240 KB of the 500 KB budget. Nothing is deployed and no account exists yet.
 
@@ -66,7 +66,6 @@ Everything up to the deploy is built and tested in the cloud: 142 app unit tests
 
 ## Deferred findings (from the session 1 review)
 
-- **5. A failed cold-start fetch fixes the bundled word for the day.** A failed or timed-out fetch is not cached, and nothing retries until the date changes or the app restarts. Fix later: one retry on app foreground while today's game has no guesses. Low impact while the Worker serves the same list as the bundle.
 - **8. Ping bodies without Content-Length are read before the size check.** Low risk (the Worker only parses); cover with a Cloudflare rate-limit rule at deploy (S1, `docs/deploy.md`).
 
 ## Open questions for the owner

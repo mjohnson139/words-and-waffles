@@ -8,8 +8,9 @@ export const REVEAL_MS = 1800; // longer than the five-tile flip (src/ui/play/ro
 export interface Ctl {
   /** Answer the word endpoint serves; defaults to dailyWord(date). */
   answer: string | null;
-  /** 'abort' makes the word endpoint unreachable; 'hang' never answers it. */
-  word: 'ok' | 'abort' | 'hang';
+  /** 'abort' makes the word endpoint unreachable; 'hang' never answers it;
+   * 'abort-once' fails the first request, then serves normally. */
+  word: 'ok' | 'abort' | 'hang' | 'abort-once';
   wordRequests: string[];
   pings: Record<string, unknown>[];
   urls: string[];
@@ -31,6 +32,10 @@ export const test = base.extend<{ ctl: Ctl }>({
         page.on('request', (r) => ctl.urls.push(r.url()));
         await page.route('https://words.test/v1/word*', async (route) => {
           ctl.wordRequests.push(route.request().url());
+          if (ctl.word === 'abort-once') {
+            ctl.word = 'ok';
+            return route.abort();
+          }
           if (ctl.word === 'abort') return route.abort();
           if (ctl.word === 'hang') return new Promise<void>(() => {});
           const date = new URL(route.request().url()).searchParams.get('date') ?? DAY;

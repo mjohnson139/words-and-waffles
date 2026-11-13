@@ -113,6 +113,21 @@ test('offline falls back to the bundled word', async ({ page, ctl }) => {
   expect(ctl.wordRequests.length).toBeGreaterThan(0);
 });
 
+test('a failed word fetch is retried when the browser comes back online', async ({ page, ctl }) => {
+  const other = wrongWord(answer);
+  ctl.answer = other;
+  ctl.word = 'abort-once';
+  await openApp(page);
+  await expect.poll(() => ctl.wordRequests.length).toBe(1);
+  await page.clock.fastForward(61_000);
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect.poll(() => ctl.wordRequests.length).toBe(2);
+  await page.waitForTimeout(500);
+  await guess(page, wrongWord(other));
+  await guess(page, other, { wait: false });
+  await expect(page.getByText(WIN[2])).toBeVisible();
+});
+
 test('request audit: one word request, one ping, respects the setting', async ({ page, ctl }) => {
   await openApp(page);
   await expect.poll(() => ctl.pings.length).toBe(1);

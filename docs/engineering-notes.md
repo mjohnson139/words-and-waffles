@@ -30,7 +30,7 @@ The current architecture map and the invariants that are easy to break. Read the
 `App.tsx` owns the date (`useToday`), settings (`useSettings`) and games (`useGames`), and passes them down; screens never read storage themselves.
 
 1. The endpoint is the Advanced override if set, else `EXPO_PUBLIC_WORD_ENDPOINT` (`src/config.ts`). Empty means no request at all: the bundled word.
-2. `useDailyWord(date, endpoint)` waits for settings, then `loadDailyWord`: a cached `{endpoint, payload}` for this date and this endpoint is final (no request, so offline cold start works); otherwise one fetch with a timeout; otherwise the bundled `dailyWord(date)` with `source: 'bundled'`.
+2. `useDailyWord(date, endpoint)` waits for settings, then `loadDailyWord`: a cached `{endpoint, payload}` for this date and this endpoint is final (no request, so offline cold start works); otherwise one fetch with a timeout; otherwise the bundled `dailyWord(date)` with `source: 'bundled'`. If a configured endpoint failed, `useDailyWord` retries on foreground or `online` (at most once per 60 s, never once today's game has guesses; `shouldRetry`).
 3. The answer reaches Play tagged with its date. Play only builds a new daily game from an answer whose date is today, so after midnight it waits for the new day's word instead of reusing yesterday's. A saved daily game always keeps its own answer.
 4. The ping (`usePingOnOpen`) also waits for settings, so an opted-out player never sends one, and runs again when the date changes; `maybePing` dedupes per local day from stored state.
 

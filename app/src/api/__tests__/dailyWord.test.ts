@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { encodeCells, type WordPayload } from '../../game/cells';
 import { dailyWord } from '../../game/daily';
-import { loadDailyWord, resolveDaily } from '../dailyWord';
+import { RETRY_MIN_MS, loadDailyWord, resolveDaily, shouldRetry } from '../dailyWord';
+
+vi.mock('react-native', () => ({
+  AppState: { addEventListener: () => ({ remove: () => {} }) },
+  Platform: { OS: 'web' },
+}));
 
 const store = new Map<string, string>();
 vi.mock('@react-native-async-storage/async-storage', () => ({
@@ -65,13 +70,13 @@ describe('loadDailyWord', () => {
     const f = vi.fn();
     const r = await loadDailyWord(DATE, '', { fetchImpl: f as unknown as typeof fetch });
     expect(f).not.toHaveBeenCalled();
-    expect(r).toEqual({ answer: bundled, source: 'bundled' });
+    expect(r).toEqual({ answer: bundled, source: 'bundled', failed: false });
   });
 
   it('success caches the payload and builds the query', async () => {
     const f = okFetch(mk(other));
     const r = await loadDailyWord(DATE, 'https://x.test/v1/word?k=1', { fetchImpl: f });
-    expect(r).toEqual({ answer: other, source: 'endpoint' });
+    expect(r).toEqual({ answer: other, source: 'endpoint', failed: false });
     const url = new URL((f as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0] as string);
     expect(url.searchParams.get('date')).toBe(DATE);
     expect(url.searchParams.get('k')).toBe('1');
@@ -84,7 +89,7 @@ describe('loadDailyWord', () => {
     const f = vi.fn();
     const r = await loadDailyWord(DATE, 'https://x.test/w', { fetchImpl: f as unknown as typeof fetch });
     expect(f).not.toHaveBeenCalled();
-    expect(r).toEqual({ answer: other, source: 'endpoint' });
+    expect(r).toEqual({ answer: other, source: 'endpoint', failed: false });
   });
 
   it('a different endpoint is not served from the cache', async () => {
@@ -93,14 +98,14 @@ describe('loadDailyWord', () => {
     const f = okFetch(mk(third));
     const r = await loadDailyWord(DATE, 'https://y.test/w', { fetchImpl: f });
     expect(f).toHaveBeenCalledTimes(1);
-    expect(r).toEqual({ answer: third, source: 'endpoint' });
+    expect(r).toEqual({ answer: third, source: 'endpoint', failed: false });
     expect(JSON.parse(store.get(`ww:word:${DATE}`)!).endpoint).toBe('https://y.test/w');
   });
 
   it('"Use default" (empty endpoint) does not serve an override cache', async () => {
     store.set(`ww:word:${DATE}`, JSON.stringify({ endpoint: 'https://x.test/w', payload: mk(other) }));
     const r = await loadDailyWord(DATE, '');
-    expect(r).toEqual({ answer: bundled, source: 'bundled' });
+    expect(r).toEqual({ answer: bundled, source: 'bundled', failed: false });
   });
 
   it('a failed fetch on a new endpoint falls back to bundled, not the old cache', async () => {
@@ -109,6 +114,7 @@ describe('loadDailyWord', () => {
     expect(await loadDailyWord(DATE, 'https://y.test/w', { fetchImpl: bad })).toEqual({
       answer: bundled,
       source: 'bundled',
+      failed: true,
     });
   });
 
@@ -116,7 +122,7 @@ describe('loadDailyWord', () => {
     const hang = ((_u: string, init: RequestInit) =>
       new Promise((_res, rej) => init.signal!.addEventListener('abort', () => rej(new Error('abort'))))) as unknown as typeof fetch;
     const r = await loadDailyWord(DATE, 'https://x.test/w', { fetchImpl: hang, timeoutMs: 10 });
-    expect(r).toEqual({ answer: bundled, source: 'bundled' });
+    expect(r).toEqual({ answer: bundled, source: 'bundled', failed: true });
   });
 
   it('prunes word keys older than 7 days', async () => {
@@ -127,5 +133,27 @@ describe('loadDailyWord', () => {
     expect(store.has('ww:word:2026-11-01')).toBe(false);
     expect(store.has('ww:word:2026-11-10')).toBe(true);
     expect(store.has('ww:other')).toBe(true);
+  });
+});
+
+describe('shouldRetry', () => {
+  const failed = { source: 'bundled' as const, failed: true };
+  const base = { result: failed, endpoint: 'https://x.test/w', hasGuesses: false, lastAttemptAt: 1000, now: 1000 + RETRY_MIN_MS + 1 };
+
+  it('retries a failed fetch with no guesses after 60 s', () => {
+    expect(shouldRetry(base)).toBe(true);
+  });
+  it('never with an empty endpoint', () => {
+    expect(shouldRetry({ ...base, endpoint: '', result: { source: 'bundled', failed: false } })).toBe(false);
+    expect(shouldRetry({ ...base, endpoint: '' })).toBe(false);
+  });
+  it('never after a success', () => {
+    expect(shouldRetry({ ...base, result: { source: 'endpoint', failed: false } })).toBe(false);
+  });
+  it('not within 60 s of the last attempt', () => {
+    expect(shouldRetry({ ...base, now: 1000 + RETRY_MIN_MS - 1 })).toBe(false);
+  });
+  it('not once the game has guesses', () => {
+    expect(shouldRetry({ ...base, hasGuesses: true })).toBe(false);
   });
 });

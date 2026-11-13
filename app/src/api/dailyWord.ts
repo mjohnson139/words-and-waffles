@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { AppState, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decodeCells, isWordPayload, type WordPayload } from '../game/cells';
 import { dailyWord } from '../game/daily';
@@ -9,6 +10,30 @@ export type DailySource = 'endpoint' | 'bundled';
 export interface Daily {
   answer: string;
   source: DailySource;
+}
+
+/** A loaded daily word, plus whether a configured endpoint was tried and failed. */
+export interface LoadedDaily extends Daily {
+  failed: boolean;
+}
+
+export const RETRY_MIN_MS = 60_000;
+
+/**
+ * Whether to try the word endpoint again: only after a configured endpoint
+ * failed, never once the game has guesses (it keeps its answer), at most once
+ * per RETRY_MIN_MS.
+ */
+export function shouldRetry(input: {
+  result: { source: DailySource; failed: boolean };
+  endpoint: string;
+  hasGuesses: boolean;
+  lastAttemptAt: number;
+  now: number;
+}): boolean {
+  const { result, endpoint, hasGuesses, lastAttemptAt, now } = input;
+  if (!endpoint || !result.failed || result.source !== 'bundled' || hasGuesses) return false;
+  return now - lastAttemptAt >= RETRY_MIN_MS;
 }
 
 const KEY_PREFIX = 'ww:word:';
@@ -82,7 +107,7 @@ export async function loadDailyWord(
   date: string,
   endpoint: string,
   opts: { fetchImpl?: typeof fetch; timeoutMs?: number } = {},
-): Promise<Daily> {
+): Promise<LoadedDaily> {
   const key = KEY_PREFIX + date;
   // The cache remembers which endpoint served it: another endpoint (an override
   // set or cleared) must not be answered from this one's payload.
@@ -93,7 +118,7 @@ export async function loadDailyWord(
   const hit = resolveDaily({ date, payload: null, cached });
   if (hit.source === 'endpoint') {
     await pruneOld(date);
-    return { answer: hit.answer, source: hit.source };
+    return { answer: hit.answer, source: hit.source, failed: false };
   }
   const payload = endpoint
     ? await fetchPayload(date, endpoint, opts.fetchImpl ?? fetch, opts.timeoutMs ?? WORD_TIMEOUT_MS)
@@ -101,22 +126,53 @@ export async function loadDailyWord(
   const { answer, source, payloadToCache } = resolveDaily({ date, payload, cached });
   if (payloadToCache) await writeJSON(key, { endpoint, payload: payloadToCache });
   await pruneOld(date);
-  return { answer, source };
+  return { answer, source, failed: !!endpoint && source === 'bundled' };
 }
 
-/** Null while loading; resolved once per (date, endpoint). */
-export function useDailyWord(date: string, endpoint: string): Daily | null {
-  const [state, setState] = useState<{ date: string; endpoint: string; daily: Daily } | null>(null);
+/**
+ * Null while loading; resolved once per (date, endpoint). If the endpoint
+ * failed, retries on foreground / `online` while the day's game has no guesses.
+ */
+export function useDailyWord(date: string, endpoint: string, hasGuesses = false): Daily | null {
+  const [state, setState] = useState<{ date: string; endpoint: string; daily: LoadedDaily; at: number } | null>(null);
+  const inFlight = useRef(false);
 
   useEffect(() => {
     let alive = true;
+    inFlight.current = false;
     loadDailyWord(date, endpoint).then((daily) => {
-      if (alive) setState({ date, endpoint, daily });
+      if (alive) setState({ date, endpoint, daily, at: Date.now() });
     });
     return () => {
       alive = false;
     };
   }, [date, endpoint]);
 
-  return state && state.date === date && state.endpoint === endpoint ? state.daily : null;
+  const retry = useEffectEvent(() => {
+    if (!state || state.date !== date || state.endpoint !== endpoint || inFlight.current) return;
+    const now = Date.now();
+    if (!shouldRetry({ result: state.daily, endpoint, hasGuesses, lastAttemptAt: state.at, now })) return;
+    inFlight.current = true;
+    loadDailyWord(date, endpoint).then((daily) => {
+      inFlight.current = false;
+      setState((cur) =>
+        cur && cur.date === date && cur.endpoint === endpoint ? { date, endpoint, daily, at: Date.now() } : cur,
+      );
+    });
+  });
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') retry();
+    });
+    const on = () => retry();
+    if (Platform.OS === 'web') window.addEventListener('online', on);
+    return () => {
+      sub.remove();
+      if (Platform.OS === 'web') window.removeEventListener('online', on);
+    };
+  }, []);
+
+  if (!state || state.date !== date || state.endpoint !== endpoint) return null;
+  return { answer: state.daily.answer, source: state.daily.source };
 }

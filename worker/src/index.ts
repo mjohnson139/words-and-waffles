@@ -39,8 +39,12 @@ async function route(request: Request, env: Cloudflare.Env): Promise<Response> {
 export default {
   async fetch(request: Request, env: Cloudflare.Env): Promise<Response> {
     const isApi = new URL(request.url).pathname.startsWith('/v1/');
-    if (isApi && request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+    if (isApi && request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: { ...CORS, 'X-Content-Type-Options': 'nosniff' } });
+    }
     const res = await route(request, env);
-    return isApi ? withCors(res) : res;
+    const out = isApi ? withCors(res) : new Response(res.body, res);
+    out.headers.set('X-Content-Type-Options', 'nosniff');
+    return out;
   },
 };

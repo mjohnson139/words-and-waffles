@@ -141,6 +141,29 @@ export function resume(
   return null;
 }
 
+/**
+ * What the Play screen should show. A daily game waits ('loading') until the
+ * day's word is known for this date, so a bundled word never stands in for a
+ * server word that is still on its way. A saved game keeps its own answer.
+ */
+export function pickGame(input: {
+  games: Record<string, GameRecord>;
+  mode: Mode;
+  date: string;
+  daily: { date: string; answer: string; source: Source } | null | undefined;
+  rand: () => number;
+  now: number;
+}): GameRecord | null | 'loading' {
+  const { games, mode, date, daily, rand, now } = input;
+  if (mode === 'daily') {
+    const saved = games['d-' + date];
+    if (saved) return saved;
+    if (daily?.date !== date) return 'loading';
+    return resume(games, mode, date, rand, now, { answer: daily.answer, source: daily.source });
+  }
+  return resume(games, mode, date, rand, now);
+}
+
 /** Lines 419-421. */
 export function startCustom(
   secret: string,

@@ -75,16 +75,41 @@ describe('loadDailyWord', () => {
     const url = new URL((f as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0] as string);
     expect(url.searchParams.get('date')).toBe(DATE);
     expect(url.searchParams.get('k')).toBe('1');
-    expect(JSON.parse(store.get(`ww:word:${DATE}`)!)).toEqual(mk(other));
+    expect(JSON.parse(store.get(`ww:word:${DATE}`)!)).toEqual({ endpoint: 'https://x.test/v1/word?k=1', payload: mk(other) });
     expect(store.get(`ww:word:${DATE}`)).not.toContain(other);
   });
 
   it('a cached payload for the date needs no request (offline cold start)', async () => {
-    store.set(`ww:word:${DATE}`, JSON.stringify(mk(other)));
+    store.set(`ww:word:${DATE}`, JSON.stringify({ endpoint: 'https://x.test/w', payload: mk(other) }));
     const f = vi.fn();
     const r = await loadDailyWord(DATE, 'https://x.test/w', { fetchImpl: f as unknown as typeof fetch });
     expect(f).not.toHaveBeenCalled();
     expect(r).toEqual({ answer: other, source: 'endpoint' });
+  });
+
+  it('a different endpoint is not served from the cache', async () => {
+    store.set(`ww:word:${DATE}`, JSON.stringify({ endpoint: 'https://x.test/w', payload: mk(other) }));
+    const third = bundled === 'slate' || other === 'slate' ? 'plumb' : 'slate';
+    const f = okFetch(mk(third));
+    const r = await loadDailyWord(DATE, 'https://y.test/w', { fetchImpl: f });
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(r).toEqual({ answer: third, source: 'endpoint' });
+    expect(JSON.parse(store.get(`ww:word:${DATE}`)!).endpoint).toBe('https://y.test/w');
+  });
+
+  it('"Use default" (empty endpoint) does not serve an override cache', async () => {
+    store.set(`ww:word:${DATE}`, JSON.stringify({ endpoint: 'https://x.test/w', payload: mk(other) }));
+    const r = await loadDailyWord(DATE, '');
+    expect(r).toEqual({ answer: bundled, source: 'bundled' });
+  });
+
+  it('a failed fetch on a new endpoint falls back to bundled, not the old cache', async () => {
+    store.set(`ww:word:${DATE}`, JSON.stringify({ endpoint: 'https://x.test/w', payload: mk(other) }));
+    const bad = vi.fn(async () => ({ ok: false }) as unknown as Response) as unknown as typeof fetch;
+    expect(await loadDailyWord(DATE, 'https://y.test/w', { fetchImpl: bad })).toEqual({
+      answer: bundled,
+      source: 'bundled',
+    });
   });
 
   it('timeout with nothing cached falls back to the bundled word', async () => {

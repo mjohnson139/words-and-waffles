@@ -45,7 +45,6 @@ export function useGames() {
   }, []);
 
   const saveGame = useCallback((g: GameRecord) => commit({ ...latest.current, [g.id]: g }), [commit]);
-  const replaceAll = useCallback((all: Games) => commit(all), [commit]);
   // Merge against the latest state, not a snapshot taken before a file picker opened.
   const restore = useCallback(
     (incoming: Games) => {
@@ -56,5 +55,5 @@ export function useGames() {
     [commit],
   );
 
-  return { ready, games, saveGame, replaceAll, restore };
+  return { ready, games, saveGame, restore };
 }

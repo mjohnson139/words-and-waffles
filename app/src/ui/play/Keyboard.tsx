@@ -1,8 +1,11 @@
 import { memo } from 'react';
-import { type LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
+import { type LayoutChangeEvent, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Mark } from '../../game/score';
 import { useTheme } from '../theme';
+
+/** Marks our keys so the hardware-keyboard hook can tell them from other buttons. */
+export const KEY_TEST_ID_PREFIX = 'key-';
 
 // Prototype lines 339-340: '+' is Enter, '-' is delete.
 const ROWS = ['qwertyuiop', 'asdfghjkl', '+zxcvbnm-'];
@@ -40,7 +43,12 @@ function KeyboardView({ marks, keyHeight, onKey, onLayout }: Props) {
                 key={ch}
                 accessibilityRole="button"
                 accessibilityLabel={ch === '-' ? 'Delete letter' : ch === '+' ? 'Enter' : ch}
-                onPress={() => onKey(key)}
+                testID={KEY_TEST_ID_PREFIX + key}
+                onPress={() => {
+                  onKey(key);
+                  // Web: a tapped key keeps focus, and Enter would press it again.
+                  if (Platform.OS === 'web') (document.activeElement as HTMLElement | null)?.blur?.();
+                }}
                 style={({ pressed }) => [
                   styles.key,
                   wide && styles.wide,

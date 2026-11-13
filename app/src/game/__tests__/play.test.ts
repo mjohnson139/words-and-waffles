@@ -5,6 +5,7 @@ import {
   WIN,
   moreLabel,
   newGame,
+  pickGame,
   press,
   resultTitle,
   resume,
@@ -181,5 +182,29 @@ describe('copy helpers', () => {
     expect(moreLabel('custom')).toBe('Pick another word');
     expect(moreLabel('extra')).toBe('Another helping');
     expect(moreLabel('daily')).toBe('Have seconds');
+  });
+});
+
+describe('pickGame', () => {
+  const date = '2026-11-05';
+  const daily = { date, answer: 'crane', source: 'endpoint' as const };
+  const base = { mode: 'daily' as const, date, rand: () => 0.5, now: 1 };
+  it('a saved daily game wins, whatever the daily answer', () => {
+    const saved = newGame('d-' + date, 'daily', date, 'terse', 'bundled');
+    expect(pickGame({ ...base, games: { [saved.id]: saved }, daily: null })).toBe(saved);
+    expect(pickGame({ ...base, games: { [saved.id]: saved }, daily })).toBe(saved);
+  });
+  it("loads while the daily answer is missing or for another date", () => {
+    expect(pickGame({ ...base, games: {}, daily: null })).toBe('loading');
+    expect(pickGame({ ...base, games: {}, daily: { ...daily, date: '2026-11-04' } })).toBe('loading');
+  });
+  it('a matching daily answer starts a new game with its source', () => {
+    expect(pickGame({ ...base, games: {}, daily })).toMatchObject({ id: 'd-' + date, answer: 'crane', source: 'endpoint' });
+  });
+  it('extra and custom never wait for the daily word', () => {
+    const x = pickGame({ ...base, mode: 'extra', games: {}, daily: null });
+    expect(x).toMatchObject({ mode: 'extra' });
+    expect(x).not.toMatchObject({ answer: dailyWord(date) });
+    expect(pickGame({ ...base, mode: 'custom', games: {}, daily: null })).toBeNull();
   });
 });

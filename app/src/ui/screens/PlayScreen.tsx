@@ -1,9 +1,8 @@
-import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { type HostInstance, type LayoutChangeEvent, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { today } from '../../game/dates';
-import { type PlayState, press, resume } from '../../game/play';
+import { type PlayState, pickGame, press } from '../../game/play';
 import type { GameRecord, Mode, Source } from '../../game/record';
 import { type Mark, keyMarks } from '../../game/score';
 import { streaks } from '../../game/stats';
@@ -27,14 +26,15 @@ interface Props {
   games: Record<string, GameRecord>;
   saveGame: (g: GameRecord) => void;
   ready: boolean;
-  /** The server's word for today (wired in step N1); defaults to the bundled word. */
-  /** The day's word from the endpoint (or bundled); used only when its date is today. */
-  dailyAnswer?: { date: string; answer: string; source: Source };
+  /** Today's local date (App's useToday); a change is the day rollover. */
+  date: string;
+  /** The day's word from the endpoint (or bundled), or null while it loads. */
+  dailyAnswer: { date: string; answer: string; source: Source } | null;
 }
 
 const NO_MARKS: Record<string, Mark> = {};
 
-export function PlayScreen({ games, saveGame, ready, dailyAnswer }: Props) {
+export function PlayScreen({ games, saveGame, ready, date, dailyAnswer }: Props) {
   const calm = useReducedMotion();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -46,7 +46,11 @@ export function PlayScreen({ games, saveGame, ready, dailyAnswer }: Props) {
   const busyRef = useRef(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const seq = useRef(0);
-  const daySeen = useRef(today());
+  const calmRef = useRef(calm);
+  const saveRef = useRef(saveGame);
+  // A reload skipped while a reveal was running: 'daily' = only if in daily mode.
+  const pending = useRef<'any' | 'daily' | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const [pop, setPop] = useState<(Anim & { col: number }) | null>(null);
   const [shake, setShake] = useState<Anim | null>(null);
@@ -59,52 +63,68 @@ export function PlayScreen({ games, saveGame, ready, dailyAnswer }: Props) {
   const [kbHeight, setKbHeight] = useState(190);
   const boardBox = useRef<HostInstance>(null);
 
-  const setPlay = (p: PlayState) => {
+  const setPlay = useCallback((p: PlayState) => {
     playRef.current = p;
     setPlayState(p);
-  };
-  const setBusy = (b: boolean) => {
+  }, []);
+  const setBusy = useCallback((b: boolean) => {
     busyRef.current = b;
     setBusyState(b);
-  };
-  const later = (fn: () => void, ms: number) => {
+  }, []);
+  const later = useCallback((fn: () => void, ms: number) => {
     timers.current.push(setTimeout(fn, ms));
-  };
-  const say = (message: string) => setToast({ message, id: ++seq.current });
+  }, []);
+  const say = useCallback((message: string) => setToast({ message, id: ++seq.current }), []);
 
-  // Port of loadGame (prototype lines 319-327).
+  // Port of loadGame (prototype lines 319-327). The same game with nothing new
+  // in it is kept as it is, so a reload never wipes typed-but-unsent letters.
   const load = (m: Mode) => {
+    const picked = pickGame({ games, mode: m, date, daily: dailyAnswer, rand: Math.random, now: Date.now() });
+    const cur = playRef.current.game;
+    if (
+      m === mode &&
+      cur &&
+      picked &&
+      picked !== 'loading' &&
+      cur.id === picked.id &&
+      cur.answer === picked.answer &&
+      cur.guesses.length === picked.guesses.length
+    ) {
+      return;
+    }
     timers.current.forEach(clearTimeout);
     timers.current = [];
     setBusy(false);
     setReveal(null);
     setHop(null);
     setMode(m);
-    const date = today();
-    const daily = dailyAnswer?.date === date ? dailyAnswer : undefined;
-    setPlay({ game: resume(games, m, date, Math.random, Date.now(), daily), typed: '' });
+    setLoading(picked === 'loading');
+    setPlay({ game: picked === 'loading' ? null : picked, typed: '' });
   };
 
-  // Saved games arrive after the first render; the server's word may arrive later still.
-  const reload = useEffectEvent(() => {
-    if (ready && !busyRef.current) load(mode);
+  // Saved games arrive after the first render; the server's word and the day
+  // rollover may arrive later still. A reload that lands mid-reveal waits.
+  const reload = useEffectEvent((only: 'any' | 'daily') => {
+    if (!ready || (only === 'daily' && mode !== 'daily')) return;
+    if (busyRef.current) pending.current = pending.current === 'any' ? 'any' : only;
+    else load(mode);
   });
   const answer = dailyAnswer?.answer;
   const source = dailyAnswer?.source;
+  const answerDate = dailyAnswer?.date;
   useEffect(() => {
-    reload();
-  }, [ready, answer, source]);
-
-  // Day rollover (prototype tick, line 458).
-  const rollover = useEffectEvent(() => {
-    if (today() === daySeen.current) return;
-    daySeen.current = today();
-    if (mode === 'daily' && !busyRef.current) load('daily');
-  });
+    reload('any');
+  }, [ready]);
   useEffect(() => {
-    const id = setInterval(rollover, 1000);
-    return () => clearInterval(id);
-  }, []);
+    reload('daily');
+  }, [date, answerDate, answer, source]);
+  useEffect(() => {
+    if (!busy && pending.current) {
+      const only = pending.current;
+      pending.current = null;
+      reload(only);
+    }
+  }, [busy]);
 
   useEffect(
     () => () => {
@@ -113,7 +133,8 @@ export function PlayScreen({ games, saveGame, ready, dailyAnswer }: Props) {
     [],
   );
 
-  const finish = (outcome: 'won' | 'lost' | null, row: number) => {
+  const finish = useCallback((outcome: 'won' | 'lost' | null, row: number) => {
+    timers.current = []; // the reveal's timers have all fired by now
     setBusy(false);
     setReveal(null);
     if (outcome === 'won') {
@@ -121,9 +142,15 @@ export function PlayScreen({ games, saveGame, ready, dailyAnswer }: Props) {
       setBurst(++seq.current);
       haptics.win();
     } else if (outcome === 'lost') haptics.lose();
-  };
+  }, [setBusy]);
 
-  const onKey = (key: string) => {
+  useEffect(() => {
+    calmRef.current = calm;
+    saveRef.current = saveGame;
+  });
+
+  // Stable, so the memoised Keyboard doesn't re-render on every keystroke.
+  const onKey = useCallback((key: string) => {
     if (busyRef.current) return;
     const { state, effects } = press(playRef.current, key, Date.now());
     if (state !== playRef.current) setPlay(state);
@@ -140,7 +167,7 @@ export function PlayScreen({ games, saveGame, ready, dailyAnswer }: Props) {
       } else if (e.type === 'toast') say(e.message);
       else if (e.type === 'reveal') {
         row = e.row;
-        if (!calm) {
+        if (!calmRef.current) {
           revealing = true;
           setBusy(true);
           setReveal({ row: e.row, id: ++seq.current, marks: e.marks });
@@ -150,11 +177,11 @@ export function PlayScreen({ games, saveGame, ready, dailyAnswer }: Props) {
         outcome = 'won';
         row = e.row;
       } else if (e.type === 'lost') outcome = 'lost';
-      else if (e.type === 'save') saveGame(e.game);
+      else if (e.type === 'save') saveRef.current(e.game);
     }
     if (revealing) later(() => finish(outcome, row), REVEAL_DONE_MS);
     else if (outcome) finish(outcome, row);
-  };
+  }, [finish, later, say, setBusy, setPlay]);
   useHardwareKeyboard(onKey);
 
   const onMode = (m: Mode) => {
@@ -162,6 +189,7 @@ export function PlayScreen({ games, saveGame, ready, dailyAnswer }: Props) {
   };
   const onMore = () => {
     if (play.game?.mode === 'custom') {
+      setLoading(false);
       setPlay({ game: null, typed: '' });
       setMode('custom');
     } else load('extra');
@@ -177,7 +205,7 @@ export function PlayScreen({ games, saveGame, ready, dailyAnswer }: Props) {
   }, [width, height]);
 
   const { game, typed } = play;
-  const showKb = !!game && (game.status === 'playing' || busy);
+  const showKb = !loading && !!game && (game.status === 'playing' || busy);
   const onKbLayout = (e: LayoutChangeEvent) => setKbHeight(e.nativeEvent.layout.height);
   const { tile, key } = fit({ width, height, boardTop, keyboardHeight: kbHeight + insets.bottom });
 
@@ -188,7 +216,7 @@ export function PlayScreen({ games, saveGame, ready, dailyAnswer }: Props) {
   const cold = left === 0 || !game || game.status === 'lost';
 
   let below = null;
-  if (ready) {
+  if (ready && !loading) {
     if (!game) below = <PickWord onToast={say} onStart={(g) => setPlay({ game: g, typed: '' })} />;
     else if (game.status === 'playing') below = game.guesses.length ? null : <Legend />;
     else if (!busy) below = <ResultCard key={game.id} game={game} onToast={say} onMore={onMore} />;
@@ -205,7 +233,7 @@ export function PlayScreen({ games, saveGame, ready, dailyAnswer }: Props) {
         <View style={styles.bar} onLayout={measure}>
           <ModeChips mode={mode} onMode={onMode} />
           <View style={styles.side}>
-            <Streak days={streaks(games, today()).now} />
+            <Streak days={streaks(games, date).now} />
             <Mug left={left} cold={cold} />
           </View>
         </View>

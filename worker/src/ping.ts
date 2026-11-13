@@ -77,6 +77,10 @@ export async function handlePing(
   const stmt = env.DB.prepare(
     'INSERT INTO counts (key, n) VALUES (?, 1) ON CONFLICT(key) DO UPDATE SET n = n + 1',
   );
-  await env.DB.batch(counterKeys(ping, utcDate).map((k) => stmt.bind(k)));
+  try {
+    await env.DB.batch(counterKeys(ping, utcDate).map((k) => stmt.bind(k)));
+  } catch {
+    return errorResponse(500, 'server error');
+  }
   return new Response(null, { status: 204 });
 }

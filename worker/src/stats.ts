@@ -1,7 +1,10 @@
 import { addDays, isoWeek, monthOf } from '../../app/src/game/dates';
+import { errorResponse } from './http';
 
 const PLATFORMS = ['ios', 'android', 'web'] as const;
 const CACHE = 'public, max-age=300';
+export const STATS_CSP =
+  "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const PRIVACY_URL = 'https://github.com/mjohnson139/words-and-waffles/blob/main/PRIVACY.md';
 
 export interface Row {
@@ -114,14 +117,26 @@ ${table('Monthly players, last 12 months', s.months)}
 }
 
 export async function handleStats(env: Cloudflare.Env, now: number = Date.now()): Promise<Response> {
-  const html = renderHtml(await loadStats(env.DB, now));
-  return new Response(html, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': CACHE },
-  });
+  try {
+    const html = renderHtml(await loadStats(env.DB, now));
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': CACHE,
+        'Content-Security-Policy': STATS_CSP,
+      },
+    });
+  } catch {
+    return errorResponse(500, 'server error');
+  }
 }
 
 export async function handleStatsJson(env: Cloudflare.Env, now: number = Date.now()): Promise<Response> {
-  return new Response(JSON.stringify(await loadStats(env.DB, now)), {
-    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': CACHE },
-  });
+  try {
+    return new Response(JSON.stringify(await loadStats(env.DB, now)), {
+      headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': CACHE },
+    });
+  } catch {
+    return errorResponse(500, 'server error');
+  }
 }

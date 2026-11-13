@@ -180,3 +180,33 @@ describe('routing', () => {
     expect((await call('/stats', { method: 'POST' })).status).toBe(405);
   });
 });
+
+describe('security headers and D1 failure', () => {
+  const brokenDb = {
+    prepare: () => ({ all: async () => Promise.reject(new Error('d1 down')), bind: () => ({}) }),
+    batch: async () => Promise.reject(new Error('d1 down')),
+  } as unknown as D1Database;
+  const broken = { ...env, DB: brokenDb } as Cloudflare.Env;
+  const callBroken = (path: string, init?: RequestInit) =>
+    worker.fetch(new Request('https://w.test' + path, init), broken);
+
+  it('sets nosniff everywhere and a CSP on /stats', async () => {
+    for (const path of ['/v1/word?date=2026-11-13', '/stats', '/stats.json', '/nope']) {
+      expect((await call(path)).headers.get('X-Content-Type-Options'), path).toBe('nosniff');
+    }
+    expect((await call('/v1/ping', { method: 'OPTIONS' })).headers.get('X-Content-Type-Options')).toBe('nosniff');
+    const csp = (await call('/stats')).headers.get('Content-Security-Policy');
+    expect(csp).toBe(
+      "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    );
+  });
+
+  it('answers 500 (with CORS on the API) when D1 fails', async () => {
+    const p = await callBroken('/v1/ping', { method: 'POST', body: JSON.stringify(good) });
+    expect(p.status).toBe(500);
+    expect(p.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    expect(await p.json()).toEqual({ error: 'server error' });
+    expect((await callBroken('/stats')).status).toBe(500);
+    expect((await callBroken('/stats.json')).status).toBe(500);
+  });
+});

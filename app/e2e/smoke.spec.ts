@@ -59,6 +59,30 @@ test('hardware keyboard types, deletes and submits', async ({ page }) => {
   await expect(page.getByText(WIN[2])).toBeVisible();
 });
 
+test('Enter after tapping an on-screen key submits instead of repeating the key', async ({ page }) => {
+  await openApp(page);
+  const word = wrongWord(answer);
+  await button(page, word[0]).click();
+  await page.keyboard.type(word.slice(1));
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(1800);
+  // The guess went in as one row: typing the answer now wins on the second row.
+  await page.keyboard.type(answer);
+  await page.keyboard.press('Enter');
+  await expect(page.getByText(WIN[2])).toBeVisible();
+});
+
+test('Seconds is playable while the word request hangs', async ({ page, ctl }) => {
+  ctl.word = 'hang';
+  await page.goto('/');
+  await button(page, 'Seconds').click();
+  await expect(button(page, 'Enter')).toBeVisible();
+  await page.keyboard.type('abc');
+  await button(page, 'Enter').click();
+  await expect(page.getByText('Five letters, chef.')).toBeVisible();
+  expect(ctl.wordRequests.length).toBeGreaterThan(0);
+});
+
 test('seconds starts another word; pick a word can be guessed', async ({ page }) => {
   await openApp(page);
   await button(page, 'Seconds').click();

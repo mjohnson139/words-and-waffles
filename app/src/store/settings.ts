@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { readJSON, writeJSON } from './storage';
 import { cleanSettings, DEFAULT_SETTINGS, type Settings } from './settingsRules';
 
@@ -20,11 +20,14 @@ export function useSettings(): {
 } {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [ready, setReady] = useState(false);
+  const latest = useRef<Settings>(DEFAULT_SETTINGS);
+  const queue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     let alive = true;
     loadSettings().then((s) => {
       if (!alive) return;
+      latest.current = s;
       setSettings(s);
       setReady(true);
     });
@@ -34,11 +37,11 @@ export function useSettings(): {
   }, []);
 
   const update = useCallback((partial: Partial<Settings>) => {
-    setSettings((prev) => {
-      const next = cleanSettings({ ...prev, ...partial });
-      void saveSettings(next);
-      return next;
-    });
+    const next = cleanSettings({ ...latest.current, ...partial });
+    latest.current = next;
+    setSettings(next);
+    // Serialise writes so a slow one can't land after a newer one.
+    queue.current = queue.current.then(() => saveSettings(next)).catch(() => {});
   }, []);
 
   return { ready, settings, update };

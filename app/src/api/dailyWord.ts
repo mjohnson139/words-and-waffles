@@ -13,6 +13,14 @@ export interface Daily {
 
 const KEY_PREFIX = 'ww:word:';
 const KEEP_DAYS = 7;
+export const WORD_TIMEOUT_MS = 2500;
+
+/** The cached payload, only when it came from this (non-empty) endpoint. */
+function cachedPayload(entry: unknown, endpoint: string): unknown | null {
+  if (!endpoint || typeof entry !== 'object' || entry === null) return null;
+  const e = entry as { endpoint?: unknown; payload?: unknown };
+  return e.endpoint === endpoint ? (e.payload ?? null) : null;
+}
 
 /** The decoded answer when the payload is for this date and intact. */
 function answerOf(x: unknown, date: string): { answer: string; payload: WordPayload } | null {
@@ -76,7 +84,10 @@ export async function loadDailyWord(
   opts: { fetchImpl?: typeof fetch; timeoutMs?: number } = {},
 ): Promise<Daily> {
   const key = KEY_PREFIX + date;
-  const cached = await readJSON<unknown>(key, null);
+  // The cache remembers which endpoint served it: another endpoint (an override
+  // set or cleared) must not be answered from this one's payload.
+  const entry = await readJSON<unknown>(key, null);
+  const cached = cachedPayload(entry, endpoint);
   // A cached payload for this date is final (the server is deterministic per
   // date), so it costs no request and needs no network: offline cold start.
   const hit = resolveDaily({ date, payload: null, cached });
@@ -85,10 +96,10 @@ export async function loadDailyWord(
     return { answer: hit.answer, source: hit.source };
   }
   const payload = endpoint
-    ? await fetchPayload(date, endpoint, opts.fetchImpl ?? fetch, opts.timeoutMs ?? 4000)
+    ? await fetchPayload(date, endpoint, opts.fetchImpl ?? fetch, opts.timeoutMs ?? WORD_TIMEOUT_MS)
     : null;
   const { answer, source, payloadToCache } = resolveDaily({ date, payload, cached });
-  if (payloadToCache) await writeJSON(key, payloadToCache);
+  if (payloadToCache) await writeJSON(key, { endpoint, payload: payloadToCache });
   await pruneOld(date);
   return { answer, source };
 }

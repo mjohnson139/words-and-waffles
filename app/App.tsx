@@ -36,7 +36,7 @@ export default function App() {
   const endpoint = settings.wordEndpointOverride || WORD_ENDPOINT;
   // Wait for settings so an override (or none) decides the one word request.
   const daily = useDailyWord(date, settingsReady ? endpoint : '');
-  usePingOnOpen(PING_ENDPOINT, settings.pingEnabled, settingsReady);
+  usePingOnOpen(PING_ENDPOINT, settings.pingEnabled, settingsReady, date);
 
   // Web: mirror the tab to location.hash both ways (prototype lines 578-585).
   useEffect(() => {
@@ -63,8 +63,9 @@ export default function App() {
               <PlayScreen
                 games={games}
                 saveGame={saveGame}
-                ready={ready && settingsReady && daily !== null}
-                dailyAnswer={daily && settingsReady ? { date, ...daily } : undefined}
+                ready={ready && settingsReady}
+                date={date}
+                dailyAnswer={daily && settingsReady ? { date, ...daily } : null}
               />
             )}
             {tab === 'history' && <HistoryScreen games={games} />}

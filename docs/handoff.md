@@ -42,8 +42,8 @@ Rules: logic in pure, node-tested modules; no new dependency without a reason in
 | 🛑 A | Owner: Cloudflare, D1, secrets, first deploy | done 2026-11-13 (PR #2 and Deploy run #3) |
 | S2 | Live checks of "Done means", README link and screenshot, repo settings | done (session 2, PR #3) |
 | F1 | Share a word by link | done (session 3, PR #4) |
+| F2 | Stats page v2: the app's look, year heatmap, tries chart from a second anonymous event | done (session 4, PR #5, ahead of 🛑 B) |
 | 🛑 B | Owner: store accounts, EAS build and submit | **next** |
-| F2 | Stats page v2: the app's look, year heatmap, tries chart from a second anonymous event | |
 | F3 | Channels: a group code with a stored daily word (needs an owner decision first) | |
 
 ## Production
@@ -55,35 +55,39 @@ Live since 2026-11-13, on the default domains:
 - Deploy: merging to `main` runs CI, then the Deploy workflow, whose `worker` and `web` jobs wait for the owner's approval on the `production` environment. Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` and variables `WORD_ENDPOINT` and `PING_ENDPOINT` are set in the repo.
 - `npm run live-check` (`scripts/live-check.mjs`) proves the five "Done means" items against production in about a minute. Its ping goes to production with `X-Dry-Run: 1`, which the Worker validates but never counts, and its last check proves `/stats` did not move. Run it after any deploy.
 
-Checks at the end of F1: 165 app unit tests, 27 Worker tests on real D1, 26 Playwright tests, web bundle 241.6 KB of the 500 KB budget locally. Live check (13 of 13 at the end of S2) runs again after F1 deploys.
+Checks at the end of F2: 176 app unit tests, 45 Worker tests on real D1, 29 Playwright tests, web bundle 242.1 KB of the 500 KB budget locally. From F2 the live check also dry-runs the end-of-game result (`POST /v1/result`), so it needs the F2 Worker deployed before it passes.
 
 ## Next step: 🛑 B, the owner builds and submits the phone apps
 
-**Goal:** Words & Waffles is in App Store Connect and Google Play (TestFlight / internal testing at least), built by EAS from `main`, with the share links of F1 pointing at the live site.
+**Goal:** Words & Waffles is in App Store Connect and Google Play (TestFlight / internal testing at least), built by EAS from `main`, with share links pointing at the live site.
 
-**Before you start:** merge PR #4 (F1), approve the Deploy run on the `production` environment, then run `npm run live-check` at the repo root. It should pass 13 of 13 with two requests. Open a share link on your phone's browser once: Pick a word, type a word, tap **Share link**, and open the link.
+**Before you start:** merge PR #5 (F2), approve the Deploy run on the `production` environment, then run `npm run live-check` at the repo root. Every check should pass, including the new result dry run. Open `https://words-and-waffles.mjohnson139.workers.dev/stats` and check the new page.
 
 **What the owner does** (no agent can: it needs your accounts):
 
 1. Apple Developer Program and Google Play Console accounts, if you don't have them yet.
-2. `docs/deploy.md`, "Phone builds", steps 1-6. Step 4 now lists three EAS environment variables: `EXPO_PUBLIC_WORD_ENDPOINT`, `EXPO_PUBLIC_PING_ENDPOINT` and `EXPO_PUBLIC_SITE_URL` (`https://words-and-waffles.pages.dev/`). Without the last one the apps hide **Share link**.
-3. Confirm the bundle id `app.wordsandwaffles` (`app/app.json`) before the first build: it cannot change afterwards.
-4. Store listing from `docs/store-listing.md`. Privacy label: "Data not collected" (the ping is anonymous counters, PRIVACY.md).
-5. Screenshots at the sizes in `docs/store-listing.md`. A session can take them for you against production (a variant of `scripts/live-check.mjs` with a 1290x2796 viewport); say so in a comment on the latest PR if you want that before you submit.
+2. Link the app to an Expo project: `npx eas-cli init` from `app/` on your own machine (session 4 found no Expo project for `@mjohnson139/words-and-waffles`, so neither an agent nor the Expo connector can start a build yet). That writes `extra.eas.projectId` into `app/app.json`; commit it in a small PR.
+3. `docs/deploy.md`, "Phone builds", steps 1-6. Step 4 lists three EAS environment variables: `EXPO_PUBLIC_WORD_ENDPOINT`, `EXPO_PUBLIC_PING_ENDPOINT` and `EXPO_PUBLIC_SITE_URL` (`https://words-and-waffles.pages.dev/`). Without the last one the apps hide **Share link**. The result endpoint needs no variable: it is derived from the ping endpoint.
+4. Confirm the bundle id `app.wordsandwaffles` (`app/app.json`) before the first build: it cannot change afterwards.
+5. Store listing from `docs/store-listing.md`. Privacy label: "Data not collected" (the ping and the end-of-game result are anonymous counters, PRIVACY.md); check that reading against the current Apple and Google definitions.
+6. Screenshots at the sizes in `docs/store-listing.md`. A session can take them for you against production (a variant of `scripts/live-check.mjs` with a 1290x2796 viewport); say so in a PR comment if you want that.
 
-**What to check on the phone build:** a daily game, Seconds, Pick a word, and **Share link** from the app. The link opens in the browser, not the app: opening links in the installed app (universal links / app links) is deferred, see below.
+Optional: once the Expo project exists and the repo is connected to it in the Expo dashboard (GitHub integration), a session can start EAS builds itself through the Expo connector. Store credentials and submission stay with you.
 
-**Questions this stop answers:** the bundle id; whether you want links to open the installed app (needs `apple-app-site-association` and `assetlinks.json` on Pages plus the app's associated domains; a small follow-up step once the apps exist, not Expo Go testable); the open questions below.
+**What to check on the phone build:** a daily game, Seconds, Pick a word, **Share link** from the app (opens in the browser), and that finishing the daily word shows up under "Today's word" on `/stats` within five minutes.
 
-**The step after 🛑 B:** F2, the stats page v2 (plan 001, "Owner decisions, 2026-11-13": the app's look on `/stats`, a year heatmap, today's tries and win rate from a second anonymous end-of-game event, platform split; PRIVACY.md and the stats copy change from "one ping" to two events). Its first unit writes `docs/plans/2026-11-13-003-feat-stats-v2-plan.md`. A session that starts while 🛑 B is still open and finds no owner comment saying otherwise may go straight to F2: the order (F1, 🛑 B, F2) puts the store build first, but F2 does not depend on it.
+**Questions this stop answers:** the bundle id; whether links should open the installed app (universal links / app links); the open questions below.
 
-**Not this step:** universal links (after 🛑 B, owner's call), channels with a stored word (F3, needs a decision), a web app manifest and `apple-touch-icon` (small; a good filler unit for any session).
+**If a session starts while 🛑 B is still open** and finds no owner comment saying otherwise, it does a filler unit instead of waiting: a web app manifest and `apple-touch-icon` (small, web only), or a key-prefix filter for `/stats` (review finding 6 of F2). F3 still waits for an owner decision.
 
-**What already exists:** `app/eas.json` (development, preview, production profiles), `app/app.json` (scheme `wordsandwaffles`, bundle ids, icons, splash), `docs/deploy.md` "Phone builds", `docs/store-listing.md`, `app/src/config.ts` (`SITE_URL`), `app/src/ui/shareWord.ts`, `docs/plans/2026-11-13-002-feat-share-word-links-plan.md`.
+**Not this step:** universal links (after 🛑 B, owner's call), channels with a stored word (F3, needs a decision).
+
+**What already exists:** `app/eas.json` (development, preview, production profiles), `app/app.json` (scheme `wordsandwaffles`, bundle ids, icons, splash), `docs/deploy.md` "Phone builds", `docs/store-listing.md`, `app/src/config.ts`, `docs/plans/2026-11-13-003-feat-stats-v2-plan.md` (what F2 shipped).
 
 ## Deferred findings (from the session 1 review)
 
-- **8. Ping bodies without Content-Length are read before the size check.** Low risk (the Worker only parses); cover with a Cloudflare rate-limit rule once a custom domain exists (`docs/deploy.md` step 8).
+- **8. Ping and result bodies without Content-Length are read before the size check.** Low risk (the Worker only parses); cover with a Cloudflare rate-limit rule once a custom domain exists (`docs/deploy.md` step 8), or a bounded stream read.
+- **F2-6. `/stats` reads the whole `counts` table per request** (cached 5 minutes at the edge). About 7 new rows a day; add a key-prefix filter if it ever matters.
 
 ## Open questions for the owner
 
@@ -95,4 +99,5 @@ Each has a default the work proceeds on.
 - **Share text:** daily results add the puzzle number (`Words & Waffles 🧇 #12 · Thu, Nov 12 · 3/6`). Keep?
 - **Channels (F3):** a group code whose holders set a daily word stored on the Worker, words only from the game list, no names. Default: not planned until you say so.
 - **Links into the apps:** share links open the website, also on phones with the app installed. Default: leave it so until you ask for universal links after 🛑 B.
+- **Stats page (F2):** "Today's word" shows only one puzzle (the busiest of yesterday, today, tomorrow) and headings use the system rounded font, not Bagel Fat One. Default: keep both.
 - **Phase 2 sync** (iCloud KV, Android backup) is out of v1: it needs native code and breaks Expo Go. Want it later?

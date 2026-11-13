@@ -1,0 +1,111 @@
+# Deploys the Worker (with its D1 migrations) and the web app (Cloudflare Pages)
+# after CI (ci.yml) has passed on main. Nothing else deploys: pull requests and
+# other branches are verified by ci.yml only. A manual run (workflow_dispatch)
+# deploys only when started on main.
+#
+# Credentials live in GitHub, never in the repo:
+#   secrets   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
+#   variables WORD_ENDPOINT, PING_ENDPOINT (public URLs of the Worker routes),
+#             PAGES_PROJECT (optional, defaults to words-and-waffles)
+# Setup steps are in docs/deploy.md. Until the secrets exist, this workflow
+# skips the deploy jobs (with a notice) instead of failing.
+
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Deploys run one at a time and finish; a half-cancelled deploy is worse than a queued one.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Secrets cannot be used in a job-level `if`, so read their presence here
+  # (as env, tested in the shell) and expose it as an output.
+  check:
+    runs-on: ubuntu-24.04
+    # After CI: only when it succeeded. Manual runs always reach the steps below.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    outputs:
+      ready: ${{ steps.secrets.outputs.ready }}
+    steps:
+      - id: secrets
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "$REF" != "refs/heads/main" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Deploy skipped: manual runs deploy only from main (this run is on $REF)."
+          elif [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Deploy skipped: set the repository secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (see docs/deploy.md)."
+          fi
+
+  # Applies pending D1 migrations to the remote database, then deploys the Worker.
+  worker:
+    needs: check
+    if: needs.check.outputs.ready == 'true'
+    runs-on: ubuntu-24.04
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      # npm 10's arborist crashes on this workspace (docs/solutions/build-issues/npm10-workspace-edgesout-crash.md).
+      - run: npm install -g npm@11.21.2
+      - run: npm ci
+      - run: npx -w worker wrangler d1 migrations apply words-and-waffles --remote
+      - run: npx -w worker wrangler deploy
+
+  # Builds the static web export against the deployed Worker and publishes it to Pages.
+  # Runs after the Worker so the app never points at endpoints that do not exist yet.
+  web:
+    needs: [check, worker]
+    if: needs.check.outputs.ready == 'true'
+    runs-on: ubuntu-24.04
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # Public URLs, so repository variables rather than secrets.
+      EXPO_PUBLIC_WORD_ENDPOINT: ${{ vars.WORD_ENDPOINT }}
+      EXPO_PUBLIC_PING_ENDPOINT: ${{ vars.PING_ENDPOINT }}
+    steps:
+      - name: Require endpoint variables
+        run: |
+          if [ -z "$EXPO_PUBLIC_WORD_ENDPOINT" ] || [ -z "$EXPO_PUBLIC_PING_ENDPOINT" ]; then
+            echo "::error::Repository variables WORD_ENDPOINT and PING_ENDPOINT must both be set (Settings > Secrets and variables > Actions > Variables). See docs/deploy.md."
+            exit 1
+          fi
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install -g npm@11.21.2
+      - run: npm ci
+      - run: npx -w app expo export -p web --clear
+      # npx -w runs inside worker/, hence ../app/dist.
+      - run: npx -w worker wrangler pages deploy ../app/dist --project-name ${{ vars.PAGES_PROJECT || 'words-and-waffles' }} --branch main

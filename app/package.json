@@ -1,0 +1,48 @@
+{
+  "name": "words-and-waffles-app",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@expo-google-fonts/bagel-fat-one": "^0.4.0",
+    "@expo/metro-runtime": "~58.0.17",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo": "~58.0.25",
+    "expo-clipboard": "~58.0.4",
+    "expo-document-picker": "~58.0.5",
+    "expo-file-system": "~58.0.13",
+    "expo-font": "~58.0.12",
+    "expo-haptics": "~58.0.8",
+    "expo-sharing": "~58.0.23",
+    "expo-splash-screen": "~58.0.14",
+    "expo-status-bar": "~58.0.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-safe-area-context": "~5.11.1",
+    "react-native-svg": "15.16.0",
+    "react-native-web": "^0.21.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/react": "~19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "^58.0.4",
+    "prettier": "^3.10.1",
+    "typescript": "~6.0.3",
+    "vitest": "~4.1.0"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "export:web": "expo export -p web",
+    "size": "node ../scripts/bundle-size.mjs",
+    "verify": "npm run typecheck && npm run lint && npm test && npm run export:web && npm run size",
+    "e2e": "EXPO_PUBLIC_WORD_ENDPOINT=https://words.test/v1/word EXPO_PUBLIC_PING_ENDPOINT=https://words.test/v1/ping expo export -p web --clear && playwright test --trace off"
+  },
+  "private": true
+}

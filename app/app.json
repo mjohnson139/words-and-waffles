@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "Words & Waffles",
+    "slug": "words-and-waffles",
+    "scheme": "wordsandwaffles",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "app.wordsandwaffles",
+      "supportsTablet": true,
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "app.wordsandwaffles",
+      "adaptiveIcon": {
+        "backgroundColor": "#e6edf8",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "name": "Words & Waffles",
+      "themeColor": "#e6edf8",
+      "backgroundColor": "#e6edf8",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-sharing",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#e6edf8",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#171b30"
+          }
+        }
+      ]
+    ]
+  }
+}

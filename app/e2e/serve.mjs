@@ -43,8 +43,8 @@ async function fileFor(urlPath) {
 createServer(async (req, res) => {
   try {
     const { pathname } = new URL(req.url ?? '/', 'http://localhost');
-    // SPA fallback: unknown paths without an extension get index.html.
-    const file = (await fileFor(pathname)) ?? (extname(pathname) ? null : await fileFor('/index.html'));
+    // Like Cloudflare Pages: any unknown path gets index.html with status 200.
+    const file = (await fileFor(pathname)) ?? (await fileFor('/index.html'));
     if (!file) {
       res.writeHead(404, { 'content-type': 'text/plain' }).end('Not found');
       return;

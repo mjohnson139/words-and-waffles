@@ -43,6 +43,8 @@ The server stores counters only, for example `day:2026-11-12`, `week:2026-W46`, 
 
 A short-lived rate limit sees the connecting IP address, so that fake pings can be slowed down. It is kept in memory only. It is never written to disk or a database, and it disappears when the server instance restarts.
 
+Cloudflare, which runs the server, necessarily sees the connecting IP address of every request, as any host does. We have turned off its analytics, and our server code never reads or stores the address except for the in-memory rate limit described above (and an optional edge rate-limit rule, whose security events Cloudflare may keep briefly).
+
 ## The public numbers
 
 All counts are public on the stats page, at `/stats` on the word server.

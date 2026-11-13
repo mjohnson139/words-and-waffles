@@ -14,11 +14,13 @@ Owner checklist. Do it once; after that, merging to `main` deploys.
 2. `npx wrangler login`
 3. `npx wrangler d1 create words-and-waffles`
 4. Copy the printed `database_id` into `worker/wrangler.toml`, replacing `REPLACE-WITH-D1-DATABASE-ID`. The id is not a secret.
-5. Commit it.
+5. Commit the database id to `main` (the deploy stays skipped until the secrets exist).
 
 ## 2. Set the word secret
 
-1. `npx wrangler secret put WORD_SECRET`
+Your Worker lives at `https://words-and-waffles.<your-subdomain>.workers.dev`. Find or register your workers.dev subdomain first: Cloudflare dashboard → Workers & Pages → the account's workers.dev settings shows it. A new account must choose one before the first Worker deploy.
+
+1. `npx wrangler secret put WORD_SECRET`. Because the Worker does not exist yet, wrangler offers to create it: answer yes.
 2. Paste a long random string (e.g. from `openssl rand -hex 32`).
 3. Never commit it.
 4. Changing it later changes every salt. That is harmless: clients re-fetch.
@@ -44,7 +46,7 @@ Repo → Settings → Secrets and variables → Actions.
    - `WORD_ENDPOINT` = `https://words-and-waffles.<your-subdomain>.workers.dev/v1/word`
    - `PING_ENDPOINT` = `https://words-and-waffles.<your-subdomain>.workers.dev/v1/ping`
    - `PAGES_PROJECT` (optional; default `words-and-waffles`)
-3. Optional: create a `production` environment with protection rules (e.g. required reviewers).
+3. Recommended: create a `production` environment (Settings → Environments) with yourself as a required reviewer. The deploy jobs use it, so every deploy then waits for your approval, and nobody who can push to `main` can ship without it.
 
 ## 5. Create the Pages project
 
@@ -77,6 +79,8 @@ Needs a custom domain. Skip this on workers.dev.
    - 120 requests per minute per IP
    - Action: Block
 
+Cloudflare's edge sees the connecting IP of every request, and the rule's security events can show those IPs for a short time. `PRIVACY.md` says so.
+
 ## Custom domain (optional)
 
 1. Add the domain in Cloudflare.
@@ -92,7 +96,7 @@ Needs a custom domain. Skip this on workers.dev.
 3. `npx eas-cli@latest init`
 4. Set `EXPO_PUBLIC_WORD_ENDPOINT` and `EXPO_PUBLIC_PING_ENDPOINT` as EAS environment variables. Make them plain, not secret: they are public URLs.
 5. `npx eas-cli@latest build --profile production --platform all`
-6. `eas submit`
+6. `eas submit` (it asks for your Apple and Google account details interactively; none are stored in the repo)
 7. Store copy: `docs/store-listing.md`.
 
 ## Never commit

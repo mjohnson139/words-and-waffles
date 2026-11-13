@@ -37,45 +37,80 @@ Rules: logic in pure, node-tested modules; no new dependency without a reason in
 | N1 | Client word fetch/decode/cache/fallback | done (session 1) |
 | N2 | Ping client | done (session 1) |
 | E1 | Playwright smoke in CI | done (session 1) |
-| R1 | Fixes from the session 1 review (rollover race, Enter on web, per-day ping, cache keyed by endpoint, settings writes, Worker headers) | done (session 1) |
-| S1 | Ship prep: service worker, deploy workflows, EAS config, icons, store copy | done (session 1) |
-| 🛑 A | Owner: merge session 1's PR, Cloudflare, D1, secrets, domain; first deploy | **next** |
-| S2 | Live checks of "Done means", README link and screenshot, repo settings | |
+| R1 | Fixes from the session 1 review | done (session 1) |
+| S1 | Ship prep: service worker, deploy workflows, EAS config, icons, store copy | done (session 1, PR #1) |
+| 🛑 A | Owner: Cloudflare, D1, secrets, first deploy | done 2026-11-13 (PR #2 and Deploy run #3) |
+| S2 | Live checks of "Done means", README link and screenshot, repo settings | done (session 2, PR #3) |
+| F1 | Share a word by link | **next** |
 | 🛑 B | Owner: store accounts, EAS build and submit | |
+| F2 | Stats page v2: the app's look, year heatmap, tries chart from a second anonymous event | |
+| F3 | Channels: a group code with a stored daily word (needs an owner decision first) | |
 
-## Next step: 🛑 A, the owner deploys
+## Production
 
-**If a session starts before 🛑 A is done** (no Cloudflare secrets and no owner comment saying it is deployed): do not wait for it. Pick the smallest open item from "Open questions" that needs no owner decision, or improve test coverage of an untested path; otherwise stop and say the deploy is pending.
+Live since 2026-11-13, on the default domains:
 
-**Session 2 (before 🛑 A, coverage fallback):** added `worker/test/rollover.test.ts` (nine D1 tests: UTC day/week/month rollover of ping counters, the stats 30/12/12 windows across the year end, impossible calendar dates and the UTC+14 horizon on `/v1/word`) and renamed `app/src/ui/stats/distribution.ts` to `bars.ts` so `npm run verify` passes on macOS; 🛑 A is unchanged and still next.
+- Site: `https://words-and-waffles.pages.dev` (Cloudflare Pages project `words-and-waffles`, Web Analytics off).
+- Worker: `https://words-and-waffles.mjohnson139.workers.dev` (`/v1/word`, `/v1/ping`, `/stats`, `/stats.json`), D1 database `words-and-waffles`, `WORD_SECRET` set.
+- Deploy: merging to `main` runs CI, then the Deploy workflow, whose `worker` and `web` jobs wait for the owner's approval on the `production` environment. Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` and variables `WORD_ENDPOINT` and `PING_ENDPOINT` are set in the repo.
+- `npm run live-check` (`scripts/live-check.mjs`) proves the five "Done means" items against production in about a minute. It plays one game, so it counts one install on `/stats`. Run it after any deploy.
 
-Everything up to the deploy is built and tested in the cloud: 142 app unit tests, 17 Worker tests on real D1, 15 Playwright tests against the web export (including offline after one visit and a third-party-host tripwire), web bundle ~240 KB of the 500 KB budget. Nothing is deployed and no account exists yet.
+Checks at the end of S2: 147 app unit tests, 26 Worker tests on real D1, 17 Playwright tests, live check 11 of 11, web bundle 239.4 KB of the 500 KB budget (235.9 KB for the main JS as served).
 
-**What the owner does** (about 20 minutes; every command is in [docs/deploy.md](deploy.md)):
+## Next step: F1, share a word by link
 
-1. Merge session 1's PR into `main`. The Deploy workflow runs and skips with a notice, because no secrets exist yet. CI should be green.
-2. Follow `docs/deploy.md` steps 1-6: create the D1 database and commit its id into `worker/wrangler.toml`; `wrangler secret put WORD_SECRET`; create the API token; add the GitHub secrets (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) and variables (`WORD_ENDPOINT`, `PING_ENDPOINT`); create the Pages project with Web Analytics off; run Actions → Deploy.
-3. Answer the open questions below that matter before going public (licence, domain, bundle id, share text).
-4. 🚩 Optional, any time: `npm install -g npm@11.21.2 && npm install && npm start -w app`, open it in Expo Go on a phone, and play a game. Note on the PR anything that feels off (animations, haptics, keyboard size, the share sheet for Back up).
+**Goal:** a player who picks a word can hand it to a friend as a link instead of handing over the phone. Opening the link starts that word as a "Picked word" game, on the web today and in the apps when they exist. Nothing about the word touches a server.
 
-**What the owner tells the next session** (as a comment on the PR or an issue, or simply by starting it): the deployed Worker URL and Pages URL. The next session reads them from the repository variables and `wrangler.toml` if they are there.
+**Requirements:** the owner's decisions in the plan under "Owner decisions, 2026-11-13" (share links only, nothing stored, before the store builds). The plan for this step does not exist yet: the first unit of the step writes it with `ce-brainstorm` (product shape: what the share moment looks like, what the receiver sees, what happens when the link is bad or the receiver already played that word) and then `ce-plan`, as `docs/plans/2026-11-13-002-feat-share-word-links-plan.md`. The "Pick a word" behaviour is the base: the prototype's sheet (`docs/prototype/prototype.html` lines 413-421) and its port, `startCustom` in `app/src/game/play.ts`. The word contract in the README ("The word endpoint contract") is the obfuscation to reuse.
 
-**Then S2 (the next agent step), in short:**
-- Goal: prove each "Done means" item against production and finish the public face of the repo.
-- Units: an `implementer` writes `scripts/live-check.mjs` (Playwright against the live Pages URL: play a game, assert only the two own hosts are contacted, exactly one word request and at most one ping, offline reload works; curl `/stats` and `/stats.json`; `/v1/word` for today decodes; a future date is rejected), runs it, and records the evidence in the PR. A `mechanic` adds the live link and a GIF or screenshot of a win (from the e2e review screenshots against production) to the README. The orchestrator checks "swapping `EXPO_PUBLIC_WORD_ENDPOINT` changes the word" with a local `wrangler dev` on another secret, and "a backup from one device restores on another" (the e2e backup test against production).
-- Repo settings the owner applies (agents cannot): description "A cosy daily word game. No accounts, no trackers.", topics `expo`, `react-native`, `word-game`, `privacy`, `cloudflare-workers`, website = the Pages URL.
-- Then 🛑 B: store accounts and `eas build` / `eas submit` (docs/deploy.md "Phone builds", docs/store-listing.md).
+**Units and delegation** (expected shape; the plan may refine it):
+
+1. Plan (orchestrator): `ce-brainstorm` then `ce-plan`, with the owner's decisions pre-answered. Half a session at most; the feature is small.
+2. `implementer`: `app/src/game/shareLink.ts` (pure): `encodeShareLink(word, salt)` returns the URL fragment, `parseShareLink(fragment)` returns the word or null. Reuse `encodeCells` and `decodeCells` from `cells.ts` with a fresh random salt per link, so the link looks like the daily payload and never contains the word in clear. Tests: round trip, tampered cell, wrong length, upper case and whitespace, an old or unrelated fragment, the empty fragment.
+3. `implementer`: the UI. On the result card and in the "Pick a word" sheet, a share action that copies the link (web: `navigator.share` when available, else the clipboard; native: `expo-sharing` is already a dependency). On launch and on `hashchange`, a `#w=` fragment starts a custom game with that word and a toast in the prototype's voice, then clears the fragment so a reload does not restart it. The game record keeps its existing shape (`mode: 'custom'`, `source: 'local'`); nothing new is stored.
+4. `implementer`: e2e in `app/e2e/share.spec.ts`: a picked word's share action yields a link; opening it in a fresh context plays that word; a bad fragment falls back to Today with a toast; the third-party-host tripwire holds. Run in parallel with unit 3 only if the plan fixes the link format first.
+5. `mechanic`: README "What it is" sentence and `docs/store-listing.md` copy mention sharing a word by link.
+
+**Decide in this step** (write the answer into the plan):
+
+- Fragment (`#w=`) rather than a query string, so the obfuscated word never reaches Cloudflare's request logs. Evidence: the request audit in e2e and `live-check` stays at the same two requests.
+- Native deep links. The web link is the share target for every platform in F1. A custom URL scheme or iOS universal links need a dev build and an `apple-app-site-association` file on Pages, which Expo Go cannot exercise; defer them to 🛑 B, and say so in the plan.
+- Whether a shared word must be in the dictionary. `startCustom` accepts any five letters today; keep that, since the sender already saw the word.
+
+**Definition of done:**
+
+- The plan file exists and the units above (or the plan's version of them) are implemented with unit tests and the e2e spec.
+- A link made on the web opens and plays on the web; the e2e spec proves it; `npm run live-check` still passes against production after the deploy, and the request audit still shows two requests.
+- No new dependency, nothing identifies a player, no server change.
+- `npm run verify` green; `npm run e2e -w app` green.
+- Review run and answered.
+- This file rewritten for 🛑 B (what the owner must do, with `docs/deploy.md` "Phone builds" and `docs/store-listing.md`; store screenshots at store sizes are 🛑 B prep, see below).
+
+**Not this step:**
+
+- Channels with a stored daily word: F3, after an owner decision.
+- The stats page redesign and the end-of-game event: F2, after 🛑 B.
+- Store screenshots at the sizes in `docs/store-listing.md`: 🛑 B prep. A variant of `scripts/live-check.mjs` with a 1290x2796 viewport can take them against production.
+- A web app manifest and `apple-touch-icon` so the site installs to a phone's home screen: small, needs no decision, and a good fallback item if F1 is blocked.
+
+**What already exists:**
+
+- `app/src/game/cells.ts` (`encodeCells`, `decodeCells`), `app/src/game/sha256.ts`, `app/src/game/play.ts` (`startCustom`, `newGame`, `resume`), `app/src/game/record.ts` (the record contract).
+- `app/src/ui/play/PickWord.tsx` (the pick-a-word sheet), `app/src/ui/play/ResultCard.tsx` (copy result), `app/src/game/share.ts` (share text), `app/src/store/backup.web.ts` (web download and share patterns), `expo-clipboard` and `expo-sharing` in `app/package.json`.
+- `app/e2e/fixtures.ts` (fixed clock, stubbed endpoints, tripwire), `app/e2e/smoke.spec.ts` ("seconds starts another word; pick a word can be guessed" drives the sheet).
+- `App.tsx` owns the date, settings and games and passes them down; the fragment handler belongs beside `useToday` and `useDailyWord`, not in a screen.
 
 ## Deferred findings (from the session 1 review)
 
-- **8. Ping bodies without Content-Length are read before the size check.** Low risk (the Worker only parses); cover with a Cloudflare rate-limit rule at deploy (S1, `docs/deploy.md`).
+- **8. Ping bodies without Content-Length are read before the size check.** Low risk (the Worker only parses); cover with a Cloudflare rate-limit rule once a custom domain exists (`docs/deploy.md` step 8).
 
 ## Open questions for the owner
 
 Each has a default the work proceeds on.
 
 - **Licence:** MIT (brief default). Change before the repo is promoted?
-- **Domain:** default `*.workers.dev` for the Worker and `*.pages.dev` for the site until you pick one. With a custom domain, the ping rate-limit rule in `docs/deploy.md` step 8 becomes available.
+- **Domain:** `*.workers.dev` and `*.pages.dev` until you pick one. With a custom domain, the ping rate-limit rule in `docs/deploy.md` step 8 becomes available.
 - **Bundle ID / package name:** `app.wordsandwaffles` is set in `app/app.json`. Change it before the first store build if you prefer another; it cannot change after.
 - **Share text:** daily results add the puzzle number (`Words & Waffles 🧇 #12 · Thu, Nov 12 · 3/6`). Keep?
+- **Channels (F3):** a group code whose holders set a daily word stored on the Worker, words only from the game list, no names. Default: not planned until you say so.
 - **Phase 2 sync** (iCloud KV, Android backup) is out of v1: it needs native code and breaks Expo Go. Want it later?

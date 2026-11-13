@@ -10,7 +10,7 @@ A cosy daily word game. No accounts, no trackers.
 
 ## What it is
 
-Guess the five-letter word of the day in six tries; each guess shows which letters sit in the right pocket, the wrong pocket, or aren't in the recipe. Keep a streak going to stack waffles, try "Seconds" for extra words, or pick a word and hand the phone to a friend. It runs on iOS, Android and the web from one Expo codebase, and works offline after the first launch.
+Guess the five-letter word of the day in six tries; each guess shows which letters sit in the right pocket, the wrong pocket, or aren't in the recipe. Keep a streak going to stack waffles, try "Seconds" for extra words, or pick a word for a friend: hand them the phone, or send it as a link that opens as their own game (the word rides in the link and never touches our server). It runs on iOS, Android and the web from one Expo codebase, and works offline after the first launch.
 
 ## Privacy, in plain words
 

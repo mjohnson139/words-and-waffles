@@ -7,3 +7,10 @@
  */
 export const WORD_ENDPOINT: string = process.env.EXPO_PUBLIC_WORD_ENDPOINT ?? '';
 export const PING_ENDPOINT: string = process.env.EXPO_PUBLIC_PING_ENDPOINT ?? '';
+
+/*
+ * Where share links point on iOS and Android (the web builds links from the
+ * page it was served from). Empty hides "Share link" on native. Set it in EAS
+ * at the store build, e.g. https://words-and-waffles.pages.dev/.
+ */
+export const SITE_URL: string = process.env.EXPO_PUBLIC_SITE_URL ?? '';

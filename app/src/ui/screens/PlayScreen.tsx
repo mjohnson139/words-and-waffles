@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type PlayState, pickGame, press } from '../../game/play';
 import type { GameRecord, Mode, Source } from '../../game/record';
 import { type Mark, keyMarks } from '../../game/score';
+import { resolveLink } from '../../game/shareLink';
 import { streaks } from '../../game/stats';
 import * as haptics from '../haptics';
 import { fit } from '../fit';
@@ -30,11 +31,14 @@ interface Props {
   date: string;
   /** The day's word from the endpoint (or bundled), or null while it loads. */
   dailyAnswer: { date: string; answer: string; source: Source } | null;
+  /** A '#w=' share link to open once the games are loaded (F1); onLink clears it. */
+  link: { fragment: string; id: number } | null;
+  onLink: () => void;
 }
 
 const NO_MARKS: Record<string, Mark> = {};
 
-export function PlayScreen({ games, saveGame, ready, date, dailyAnswer }: Props) {
+export function PlayScreen({ games, saveGame, ready, date, dailyAnswer, link, onLink }: Props) {
   const calm = useReducedMotion();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -76,6 +80,18 @@ export function PlayScreen({ games, saveGame, ready, date, dailyAnswer }: Props)
   }, []);
   const say = useCallback((message: string) => setToast({ message, id: ++seq.current }), []);
 
+  const show = (m: Mode, picked: GameRecord | null | 'loading') => {
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+    pending.current = null;
+    setBusy(false);
+    setReveal(null);
+    setHop(null);
+    setMode(m);
+    setLoading(picked === 'loading');
+    setPlay({ game: picked === 'loading' ? null : picked, typed: '' });
+  };
+
   // Port of loadGame (prototype lines 319-327). The same game with nothing new
   // in it is kept as it is, so a reload never wipes typed-but-unsent letters.
   const load = (m: Mode) => {
@@ -92,14 +108,7 @@ export function PlayScreen({ games, saveGame, ready, date, dailyAnswer }: Props)
     ) {
       return;
     }
-    timers.current.forEach(clearTimeout);
-    timers.current = [];
-    setBusy(false);
-    setReveal(null);
-    setHop(null);
-    setMode(m);
-    setLoading(picked === 'loading');
-    setPlay({ game: picked === 'loading' ? null : picked, typed: '' });
+    show(m, picked);
   };
 
   // Saved games arrive after the first render; the server's word and the day
@@ -118,6 +127,22 @@ export function PlayScreen({ games, saveGame, ready, date, dailyAnswer }: Props)
   useEffect(() => {
     reload('daily');
   }, [date, answerDate, answer, source]);
+  // A share link (F1): its game replaces whatever is on the board, even mid-reveal;
+  // a bad link shows Today.
+  const openLink = useEffectEvent(() => {
+    if (!ready || !link) return;
+    const { game, toast } = resolveLink(games, link.fragment, date);
+    if (game) show('custom', game);
+    else load('daily');
+    say(toast);
+    onLink();
+  });
+  useEffect(() => {
+    // The link arrives from outside React (the URL) and is applied exactly once, then cleared.
+    // The rule fires on the toast (say) inside openLink; the sibling reload effects don't toast.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    openLink();
+  }, [ready, link?.id]);
   useEffect(() => {
     if (!busy && pending.current) {
       const only = pending.current;

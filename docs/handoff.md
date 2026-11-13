@@ -41,8 +41,8 @@ Rules: logic in pure, node-tested modules; no new dependency without a reason in
 | S1 | Ship prep: service worker, deploy workflows, EAS config, icons, store copy | done (session 1, PR #1) |
 | 🛑 A | Owner: Cloudflare, D1, secrets, first deploy | done 2026-11-13 (PR #2 and Deploy run #3) |
 | S2 | Live checks of "Done means", README link and screenshot, repo settings | done (session 2, PR #3) |
-| F1 | Share a word by link | **next** |
-| 🛑 B | Owner: store accounts, EAS build and submit | |
+| F1 | Share a word by link | done (session 3, PR #4) |
+| 🛑 B | Owner: store accounts, EAS build and submit | **next** |
 | F2 | Stats page v2: the app's look, year heatmap, tries chart from a second anonymous event | |
 | F3 | Channels: a group code with a stored daily word (needs an owner decision first) | |
 
@@ -55,50 +55,31 @@ Live since 2026-11-13, on the default domains:
 - Deploy: merging to `main` runs CI, then the Deploy workflow, whose `worker` and `web` jobs wait for the owner's approval on the `production` environment. Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` and variables `WORD_ENDPOINT` and `PING_ENDPOINT` are set in the repo.
 - `npm run live-check` (`scripts/live-check.mjs`) proves the five "Done means" items against production in about a minute. Its ping goes to production with `X-Dry-Run: 1`, which the Worker validates but never counts, and its last check proves `/stats` did not move. Run it after any deploy.
 
-Checks at the end of S2: 147 app unit tests, 27 Worker tests on real D1, 17 Playwright tests, live check 13 of 13, web bundle 239.4 KB of the 500 KB budget locally and 237.2 KB as served.
+Checks at the end of F1: 165 app unit tests, 27 Worker tests on real D1, 26 Playwright tests, web bundle 241.6 KB of the 500 KB budget locally. Live check (13 of 13 at the end of S2) runs again after F1 deploys.
 
-## Next step: F1, share a word by link
+## Next step: 🛑 B, the owner builds and submits the phone apps
 
-**Goal:** a player who picks a word can hand it to a friend as a link instead of handing over the phone. Opening the link starts that word as a "Picked word" game, on the web today and in the apps when they exist. Nothing about the word touches a server.
+**Goal:** Words & Waffles is in App Store Connect and Google Play (TestFlight / internal testing at least), built by EAS from `main`, with the share links of F1 pointing at the live site.
 
-**Requirements:** the owner's decisions in the plan under "Owner decisions, 2026-11-13" (share links only, nothing stored, before the store builds). The plan for this step does not exist yet: the first unit of the step writes it with `ce-brainstorm` (product shape: what the share moment looks like, what the receiver sees, what happens when the link is bad or the receiver already played that word) and then `ce-plan`, as `docs/plans/2026-11-13-002-feat-share-word-links-plan.md`. The "Pick a word" behaviour is the base: the prototype's sheet (`docs/prototype/prototype.html` lines 413-421) and its port, `startCustom` in `app/src/game/play.ts`. The word contract in the README ("The word endpoint contract") is the obfuscation to reuse.
+**Before you start:** merge PR #4 (F1), approve the Deploy run on the `production` environment, then run `npm run live-check` at the repo root. It should pass 13 of 13 with two requests. Open a share link on your phone's browser once: Pick a word, type a word, tap **Share link**, and open the link.
 
-**Units and delegation** (expected shape; the plan may refine it):
+**What the owner does** (no agent can: it needs your accounts):
 
-1. Plan (orchestrator): `ce-brainstorm` then `ce-plan`, with the owner's decisions pre-answered. Half a session at most; the feature is small.
-2. `implementer`: `app/src/game/shareLink.ts` (pure): `encodeShareLink(word, salt)` returns the URL fragment, `parseShareLink(fragment)` returns the word or null. Reuse `encodeCells` and `decodeCells` from `cells.ts` with a fresh random salt per link, so the link looks like the daily payload and never contains the word in clear. Tests: round trip, tampered cell, wrong length, upper case and whitespace, an old or unrelated fragment, the empty fragment.
-3. `implementer`: the UI. On the result card and in the "Pick a word" sheet, a share action that copies the link (web: `navigator.share` when available, else the clipboard; native: `expo-sharing` is already a dependency). On launch and on `hashchange`, a `#w=` fragment starts a custom game with that word and a toast in the prototype's voice, then clears the fragment so a reload does not restart it. The game record keeps its existing shape (`mode: 'custom'`, `source: 'local'`); nothing new is stored.
-4. `implementer`: e2e in `app/e2e/share.spec.ts`: a picked word's share action yields a link; opening it in a fresh context plays that word; a bad fragment falls back to Today with a toast; the third-party-host tripwire holds. Run in parallel with unit 3 only if the plan fixes the link format first.
-5. `mechanic`: README "What it is" sentence and `docs/store-listing.md` copy mention sharing a word by link.
+1. Apple Developer Program and Google Play Console accounts, if you don't have them yet.
+2. `docs/deploy.md`, "Phone builds", steps 1-6. Step 4 now lists three EAS environment variables: `EXPO_PUBLIC_WORD_ENDPOINT`, `EXPO_PUBLIC_PING_ENDPOINT` and `EXPO_PUBLIC_SITE_URL` (`https://words-and-waffles.pages.dev/`). Without the last one the apps hide **Share link**.
+3. Confirm the bundle id `app.wordsandwaffles` (`app/app.json`) before the first build: it cannot change afterwards.
+4. Store listing from `docs/store-listing.md`. Privacy label: "Data not collected" (the ping is anonymous counters, PRIVACY.md).
+5. Screenshots at the sizes in `docs/store-listing.md`. A session can take them for you against production (a variant of `scripts/live-check.mjs` with a 1290x2796 viewport); say so in a comment on the latest PR if you want that before you submit.
 
-**Decide in this step** (write the answer into the plan):
+**What to check on the phone build:** a daily game, Seconds, Pick a word, and **Share link** from the app. The link opens in the browser, not the app: opening links in the installed app (universal links / app links) is deferred, see below.
 
-- Fragment (`#w=`) rather than a query string, so the obfuscated word never reaches Cloudflare's request logs. Evidence: the request audit in e2e and `live-check` stays at the same two requests.
-- Native deep links. The web link is the share target for every platform in F1. A custom URL scheme or iOS universal links need a dev build and an `apple-app-site-association` file on Pages, which Expo Go cannot exercise; defer them to 🛑 B, and say so in the plan.
-- Whether a shared word must be in the dictionary. `startCustom` accepts any five letters today; keep that, since the sender already saw the word.
+**Questions this stop answers:** the bundle id; whether you want links to open the installed app (needs `apple-app-site-association` and `assetlinks.json` on Pages plus the app's associated domains; a small follow-up step once the apps exist, not Expo Go testable); the open questions below.
 
-**Definition of done:**
+**The step after 🛑 B:** F2, the stats page v2 (plan 001, "Owner decisions, 2026-11-13": the app's look on `/stats`, a year heatmap, today's tries and win rate from a second anonymous end-of-game event, platform split; PRIVACY.md and the stats copy change from "one ping" to two events). Its first unit writes `docs/plans/2026-11-13-003-feat-stats-v2-plan.md`. A session that starts while 🛑 B is still open and finds no owner comment saying otherwise may go straight to F2: the order (F1, 🛑 B, F2) puts the store build first, but F2 does not depend on it.
 
-- The plan file exists and the units above (or the plan's version of them) are implemented with unit tests and the e2e spec.
-- A link made on the web opens and plays on the web; the e2e spec proves it; `npm run live-check` still passes against production after the deploy, and the request audit still shows two requests.
-- No new dependency, nothing identifies a player, no server change.
-- `npm run verify` green; `npm run e2e -w app` green.
-- Review run and answered.
-- This file rewritten for 🛑 B (what the owner must do, with `docs/deploy.md` "Phone builds" and `docs/store-listing.md`; store screenshots at store sizes are 🛑 B prep, see below).
+**Not this step:** universal links (after 🛑 B, owner's call), channels with a stored word (F3, needs a decision), a web app manifest and `apple-touch-icon` (small; a good filler unit for any session).
 
-**Not this step:**
-
-- Channels with a stored daily word: F3, after an owner decision.
-- The stats page redesign and the end-of-game event: F2, after 🛑 B.
-- Store screenshots at the sizes in `docs/store-listing.md`: 🛑 B prep. A variant of `scripts/live-check.mjs` with a 1290x2796 viewport can take them against production.
-- A web app manifest and `apple-touch-icon` so the site installs to a phone's home screen: small, needs no decision, and a good fallback item if F1 is blocked.
-
-**What already exists:**
-
-- `app/src/game/cells.ts` (`encodeCells`, `decodeCells`), `app/src/game/sha256.ts`, `app/src/game/play.ts` (`startCustom`, `newGame`, `resume`), `app/src/game/record.ts` (the record contract).
-- `app/src/ui/play/PickWord.tsx` (the pick-a-word sheet), `app/src/ui/play/ResultCard.tsx` (copy result), `app/src/game/share.ts` (share text), `app/src/store/backup.web.ts` (web download and share patterns), `expo-clipboard` and `expo-sharing` in `app/package.json`.
-- `app/e2e/fixtures.ts` (fixed clock, stubbed endpoints, tripwire), `app/e2e/smoke.spec.ts` ("seconds starts another word; pick a word can be guessed" drives the sheet).
-- `App.tsx` owns the date, settings and games and passes them down; the fragment handler belongs beside `useToday` and `useDailyWord`, not in a screen.
+**What already exists:** `app/eas.json` (development, preview, production profiles), `app/app.json` (scheme `wordsandwaffles`, bundle ids, icons, splash), `docs/deploy.md` "Phone builds", `docs/store-listing.md`, `app/src/config.ts` (`SITE_URL`), `app/src/ui/shareWord.ts`, `docs/plans/2026-11-13-002-feat-share-word-links-plan.md`.
 
 ## Deferred findings (from the session 1 review)
 
@@ -113,4 +94,5 @@ Each has a default the work proceeds on.
 - **Bundle ID / package name:** `app.wordsandwaffles` is set in `app/app.json`. Change it before the first store build if you prefer another; it cannot change after.
 - **Share text:** daily results add the puzzle number (`Words & Waffles 🧇 #12 · Thu, Nov 12 · 3/6`). Keep?
 - **Channels (F3):** a group code whose holders set a daily word stored on the Worker, words only from the game list, no names. Default: not planned until you say so.
+- **Links into the apps:** share links open the website, also on phones with the app installed. Default: leave it so until you ask for universal links after 🛑 B.
 - **Phase 2 sync** (iCloud KV, Android backup) is out of v1: it needs native code and breaks Expo Go. Want it later?

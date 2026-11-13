@@ -94,7 +94,7 @@ Cloudflare's edge sees the connecting IP of every request, and the rule's securi
 1. `cd app`
 2. `npx eas-cli@latest login`
 3. `npx eas-cli@latest init`
-4. Set `EXPO_PUBLIC_WORD_ENDPOINT` and `EXPO_PUBLIC_PING_ENDPOINT` as EAS environment variables. Make them plain, not secret: they are public URLs.
+4. Set `EXPO_PUBLIC_WORD_ENDPOINT`, `EXPO_PUBLIC_PING_ENDPOINT` and `EXPO_PUBLIC_SITE_URL` (`https://words-and-waffles.pages.dev/`, where share links point; while it is empty the apps hide "Share link") as EAS environment variables. Make them plain, not secret: they are public URLs.
 5. `npx eas-cli@latest build --profile production --platform all`
 6. `eas submit` (it asks for your Apple and Google account details interactively; none are stored in the repo)
 7. Store copy: `docs/store-listing.md`.

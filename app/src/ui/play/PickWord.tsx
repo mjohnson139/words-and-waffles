@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Platform, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
-import { startCustom } from '../../game/play';
+import { NEED_FIVE, startCustom } from '../../game/play';
 import type { GameRecord } from '../../game/record';
 import { today } from '../../game/dates';
+import { okWord } from '../../game/words';
+import { canShareLinks, shareWord } from '../shareWord';
 import { fonts, useTheme } from '../theme';
 import { Btn } from './Btn';
 
@@ -24,6 +26,14 @@ export function PickWord({ onStart, onToast }: Props) {
     setSecret('');
     onStart(r.game);
     onToast(r.toast);
+  };
+
+  // Send the word as a link instead of handing the phone over (F1).
+  const share = async () => {
+    const w = secret.trim().toLowerCase();
+    if (!okWord(w)) return onToast(NEED_FIVE);
+    const message = await shareWord(w);
+    if (message) onToast(message);
   };
 
   return (
@@ -54,6 +64,7 @@ export function PickWord({ onStart, onToast }: Props) {
           ]}
         />
         <Btn label="Start" onPress={submit} />
+        {canShareLinks() && <Btn alt label="Share link" onPress={share} />}
       </View>
       <View style={styles.peek}>
         <Switch

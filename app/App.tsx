@@ -5,6 +5,7 @@ import { Platform, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { useDailyWord } from './src/api/dailyWord';
+import { isShareFragment } from './src/game/shareLink';
 import { usePingOnOpen } from './src/api/ping';
 import { PING_ENDPOINT, WORD_ENDPOINT } from './src/config';
 import { useGames } from './src/store/games';
@@ -39,10 +40,24 @@ export default function App() {
   const daily = useDailyWord(date, settingsReady ? endpoint : '', hasGuesses);
   usePingOnOpen(PING_ENDPOINT, settings.pingEnabled, settingsReady, date);
 
+  // Web: a '#w=' share link (F1). Play opens it once the games are loaded.
+  const [link, setLink] = useState(() =>
+    Platform.OS === 'web' && isShareFragment(location.hash) ? { fragment: location.hash, id: 0 } : null,
+  );
+  const linkOpened = () => {
+    setLink(null);
+    // Drop the link so a reload does not reopen it, without a history entry.
+    history.replaceState(null, '', location.pathname + location.search + '#play');
+  };
+
   // Web: mirror the tab to location.hash both ways (prototype lines 578-585).
   useEffect(() => {
     if (Platform.OS !== 'web') return;
-    const on = () => setTab(fromHash());
+    const on = () => {
+      if (!isShareFragment(location.hash)) return setTab(fromHash());
+      setLink({ fragment: location.hash, id: Date.now() });
+      setTab('play');
+    };
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);
@@ -67,6 +82,8 @@ export default function App() {
                 ready={ready && settingsReady}
                 date={date}
                 dailyAnswer={daily && settingsReady ? { date, ...daily } : null}
+                link={link}
+                onLink={linkOpened}
               />
             )}
             {tab === 'history' && <HistoryScreen games={games} />}

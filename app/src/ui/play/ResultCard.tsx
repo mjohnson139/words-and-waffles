@@ -9,6 +9,7 @@ import { shareText } from '../../game/share';
 import { Logo } from '../Logo';
 import { fonts, useTheme } from '../theme';
 import { useReducedMotion } from '../useReducedMotion';
+import { canShareLinks, shareWord } from '../shareWord';
 import { Btn } from './Btn';
 
 interface Props {
@@ -38,6 +39,12 @@ export function ResultCard({ game, onToast, onMore }: Props) {
     }
   };
 
+  // Seconds and picked words can travel as a link; the daily word would only spoil it.
+  const shareLink = async () => {
+    const message = await shareWord(game.answer);
+    if (message) onToast(message);
+  };
+
   return (
     <Animated.View
       style={[
@@ -62,6 +69,7 @@ export function ResultCard({ game, onToast, onMore }: Props) {
       {game.mode === 'daily' && <Countdown />}
       <View style={styles.btns}>
         <Btn alt label="Copy result" onPress={copy} />
+        {game.mode !== 'daily' && canShareLinks() && <Btn alt label="Share word" onPress={shareLink} />}
         <Btn label={moreLabel(game.mode)} onPress={onMore} />
       </View>
     </Animated.View>

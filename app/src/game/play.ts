@@ -164,6 +164,8 @@ export function pickGame(input: {
   return resume(games, mode, date, rand, now);
 }
 
+export const NEED_FIVE = 'It needs exactly five letters, A to Z.';
+
 /** Lines 419-421. */
 export function startCustom(
   secret: string,
@@ -172,7 +174,7 @@ export function startCustom(
   rand: () => number,
 ): { game: GameRecord; toast: string } | { error: string } {
   const w = secret.trim().toLowerCase();
-  if (!okWord(w)) return { error: 'It needs exactly five letters, A to Z.' };
+  if (!okWord(w)) return { error: NEED_FIVE };
   return {
     game: newGame('c-' + uid(now, rand), 'custom', date, w, 'local'),
     toast: 'Word is in the iron. Go!',

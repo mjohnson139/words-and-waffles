@@ -1,0 +1,15 @@
+{
+  "name": "words-and-waffles",
+  "private": true,
+  "license": "MIT",
+  "workspaces": [
+    "app",
+    "worker"
+  ],
+  "scripts": {
+    "verify": "npm run verify -w app && npm run verify -w worker",
+    "test": "npm test -w app && npm test -w worker",
+    "typecheck": "npm run typecheck -w app && npm run typecheck -w worker",
+    "lint": "npm run lint -w app && npm run lint -w worker"
+  }
+}

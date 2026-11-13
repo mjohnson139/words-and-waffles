@@ -53,9 +53,9 @@ Live since 2026-11-13, on the default domains:
 - Site: `https://words-and-waffles.pages.dev` (Cloudflare Pages project `words-and-waffles`, Web Analytics off).
 - Worker: `https://words-and-waffles.mjohnson139.workers.dev` (`/v1/word`, `/v1/ping`, `/stats`, `/stats.json`), D1 database `words-and-waffles`, `WORD_SECRET` set.
 - Deploy: merging to `main` runs CI, then the Deploy workflow, whose `worker` and `web` jobs wait for the owner's approval on the `production` environment. Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` and variables `WORD_ENDPOINT` and `PING_ENDPOINT` are set in the repo.
-- `npm run live-check` (`scripts/live-check.mjs`) proves the five "Done means" items against production in about a minute. It lets exactly one ping reach production, so each run counts one install on `/stats`; its other browser contexts abort theirs. Run it after any deploy.
+- `npm run live-check` (`scripts/live-check.mjs`) proves the five "Done means" items against production in about a minute. Its ping goes to production with `X-Dry-Run: 1`, which the Worker validates but never counts, and its last check proves `/stats` did not move. Run it after any deploy.
 
-Checks at the end of S2: 147 app unit tests, 26 Worker tests on real D1, 17 Playwright tests, live check 12 of 12, web bundle 239.4 KB of the 500 KB budget locally and 237.2 KB as served.
+Checks at the end of S2: 147 app unit tests, 27 Worker tests on real D1, 17 Playwright tests, live check 13 of 13, web bundle 239.4 KB of the 500 KB budget locally and 237.2 KB as served.
 
 ## Next step: F1, share a word by link
 

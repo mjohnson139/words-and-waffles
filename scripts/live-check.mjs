@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Proves the five "Done means" items against the deployed site and Worker.
 // Usage: npm run live-check   (SITE_URL, WORKER_URL override the defaults; SHOW_WORD=1 prints the word)
-// Each run lets exactly one ping reach production (the request audit), so it counts one install on /stats.
-// Every other browser context aborts its ping. @playwright/test comes from the app workspace (hoisted).
+// The request audit sends the app's real ping to production with `X-Dry-Run: 1`, which the Worker
+// validates and answers but never counts; every other browser context aborts its ping. A run leaves
+// /stats unchanged, and the last check proves it. @playwright/test comes from the app workspace (hoisted).
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -87,6 +88,7 @@ async function guess(page, word) {
 
 let answer = '';
 let puzzle = 0;
+let installsBefore = null;
 
 async function workerChecks() {
   await check('worker /stats page', null, async () => {
@@ -102,6 +104,7 @@ async function workerChecks() {
   await check('worker /stats.json', null, async () => {
     const j = await (await fetch(`${WORKER}/stats.json`)).json();
     assert(typeof j.installs === 'number', 'installs not a number');
+    installsBefore = j.installs;
     assert(j.days?.length === 30 && j.weeks?.length === 12 && j.months?.length === 12, 'window lengths wrong');
     return `installs ${j.installs}, 30 days, 12 weeks, 12 months`;
   });
@@ -146,6 +149,8 @@ async function bundleCheck() {
 
 async function playAuditOffline(browser) {
   const context = await browser.newContext(VIEW);
+  // The real ping, as the app built it, reaches the real Worker; the header keeps it off the counters.
+  await context.route(`${WORKER}/v1/ping`, (r) => r.continue({ headers: { ...r.request().headers(), 'x-dry-run': '1' } }));
   const page = await context.newPage();
   const reqs = watch(page);
   const pingStatus = [];
@@ -288,6 +293,13 @@ if (browser) {
     await browser.close();
   }
 }
+
+await check('stats not inflated by this run', null, async () => {
+  const j = await (await fetch(`${WORKER}/stats.json`, { cache: 'no-store' })).json();
+  assert(installsBefore !== null, 'no starting count');
+  assert(j.installs === installsBefore, `installs went from ${installsBefore} to ${j.installs}`);
+  return `installs still ${j.installs}`;
+});
 
 const doneMeans = [
   ['offline', 'cold start to a playable board offline, after one visit'],

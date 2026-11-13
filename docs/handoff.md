@@ -47,6 +47,8 @@ Rules: logic in pure, node-tested modules; no new dependency without a reason in
 
 **If a session starts before 🛑 A is done** (no Cloudflare secrets and no owner comment saying it is deployed): do not wait for it. Pick the smallest open item from "Open questions" that needs no owner decision, or improve test coverage of an untested path; otherwise stop and say the deploy is pending.
 
+**Session 2 (before 🛑 A, coverage fallback):** added `worker/test/rollover.test.ts` (nine D1 tests: UTC day/week/month rollover of ping counters, the stats 30/12/12 windows across the year end, impossible calendar dates and the UTC+14 horizon on `/v1/word`) and renamed `app/src/ui/stats/distribution.ts` to `bars.ts` so `npm run verify` passes on macOS; 🛑 A is unchanged and still next.
+
 Everything up to the deploy is built and tested in the cloud: 142 app unit tests, 17 Worker tests on real D1, 15 Playwright tests against the web export (including offline after one visit and a third-party-host tripwire), web bundle ~240 KB of the 500 KB budget. Nothing is deployed and no account exists yet.
 
 **What the owner does** (about 20 minutes; every command is in [docs/deploy.md](deploy.md)):

@@ -1,11 +1,22 @@
 {
-  "name": "worker",
+  "name": "words-and-waffles-worker",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "scripts": {
-    "verify": "echo 'worker: nothing yet'",
-    "test": "echo 'worker: no tests yet'",
-    "typecheck": "echo 'worker: no typecheck yet'",
-    "lint": "echo 'worker: no lint yet'"
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "dry-run": "wrangler deploy --dry-run --outdir dist",
+    "verify": "npm run typecheck && npm run lint && npm test && npm run dry-run"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.23.0",
+    "@cloudflare/workers-types": "^5.20261113.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.46.0",
+    "eslint": "^9.39.5",
+    "vitest": "~4.1.0",
+    "wrangler": "^4.161.0"
   }
 }

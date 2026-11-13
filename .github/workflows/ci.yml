@@ -22,6 +22,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # npm 10's arborist crashes on this workspace (docs/solutions/build-issues/npm10-workspace-edgesout-crash.md).
+      - run: npm install -g npm@11.21.2
       - run: npm ci
       # App: typecheck, lint, unit tests, web export, bundle budget.
       # Worker: typecheck, lint, tests, dry-run deploy.

@@ -4,6 +4,6 @@ Durable investigations, one solved problem per document, organized by category (
 
 | Work area | Learning |
 | --- | --- |
-| _none yet_ | The first qualifying capture adds a row here. |
+| Installing dependencies, npm versions, install scripts | [npm 10 crashes on this workspace; use npm 11](build-issues/npm10-workspace-edgesout-crash.md) |
 
 [Engineering notes](../engineering-notes.md) is the current architecture map; this index points to reasoning and evidence.

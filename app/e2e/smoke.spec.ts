@@ -152,6 +152,39 @@ test('request audit: one word request, one ping, respects the setting', async ({
   expect(ctl.pings).toHaveLength(1);
 });
 
+test('request audit: one anonymous result per finished daily game', async ({ page, ctl }) => {
+  await winDaily(page);
+  await expect.poll(() => ctl.results.length).toBe(1);
+  expect(ctl.results[0]).toEqual({ d: DAY, g: 2 });
+  expect(Object.keys(ctl.results[0]).sort()).toEqual(['d', 'g']);
+
+  await page.reload();
+  await expect(page.getByText('The word was')).toBeVisible();
+  await page.waitForTimeout(800);
+  expect(ctl.results).toHaveLength(1);
+});
+
+test('request audit: a lost daily game sends x', async ({ page, ctl }) => {
+  await openApp(page);
+  for (let i = 0; i < 6; i++) await guess(page, wrongWord(answer));
+  await expect(page.getByText('Burnt that one.')).toBeVisible();
+  await expect.poll(() => ctl.results.length).toBe(1);
+  expect(ctl.results[0]).toEqual({ d: DAY, g: 'x' });
+});
+
+test('request audit: no result when the daily count is switched off', async ({ page, ctl }) => {
+  await openApp(page);
+  await page.getByRole('tab', { name: 'Stats' }).click();
+  await page.getByLabel('Send the daily count').click();
+  await page.waitForTimeout(300);
+  await page.getByRole('tab', { name: 'Play' }).click();
+  await guess(page, wrongWord(answer));
+  await guess(page, answer, { wait: false });
+  await expect(page.getByText(WIN[2])).toBeVisible();
+  await page.waitForTimeout(1000);
+  expect(ctl.results).toHaveLength(0);
+});
+
 test('backup and restore round trip', async ({ page, ctl, browser }) => {
   await winDaily(page);
   await page.getByRole('tab', { name: 'Stats' }).click();

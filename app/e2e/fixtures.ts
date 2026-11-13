@@ -13,6 +13,7 @@ export interface Ctl {
   word: 'ok' | 'abort' | 'hang' | 'abort-once';
   wordRequests: string[];
   pings: Record<string, unknown>[];
+  results: Record<string, unknown>[];
   urls: string[];
   /** Applies the fixed clock, routes and request log to a page (also for extra contexts). */
   install: (page: Page) => Promise<void>;
@@ -26,6 +27,7 @@ export const test = base.extend<{ ctl: Ctl }>({
       word: 'ok',
       wordRequests: [],
       pings: [],
+      results: [],
       urls: [],
       install: async (page) => {
         await page.clock.install({ time: new Date(2026, 10, 13, 9, 0) });
@@ -68,6 +70,21 @@ export const test = base.extend<{ ctl: Ctl }>({
             });
           }
           ctl.pings.push(req.postDataJSON());
+          await route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
+        });
+        await page.route('https://words.test/v1/result', async (route) => {
+          const req = route.request();
+          if (req.method() === 'OPTIONS') {
+            return route.fulfill({
+              status: 204,
+              headers: {
+                'access-control-allow-origin': '*',
+                'access-control-allow-headers': 'content-type',
+                'access-control-allow-methods': 'POST',
+              },
+            });
+          }
+          ctl.results.push(req.postDataJSON());
           await route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
         });
       },

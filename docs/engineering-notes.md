@@ -24,3 +24,18 @@ The current architecture map and the invariants that are easy to break. Read the
 - **The word hashing is obfuscation**, not security. Never describe it otherwise.
 - **Expo Go compatible:** only Expo SDK modules, no custom native code.
 - **Animations** use the native driver on iOS/Android and the JS driver on web; reduced motion skips them entirely, as the prototype's `calm` does.
+
+## The daily word, end to end
+
+`App.tsx` owns the date (`useToday`), settings (`useSettings`) and games (`useGames`), and passes them down; screens never read storage themselves.
+
+1. The endpoint is the Advanced override if set, else `EXPO_PUBLIC_WORD_ENDPOINT` (`src/config.ts`). Empty means no request at all: the bundled word.
+2. `useDailyWord(date, endpoint)` waits for settings, then `loadDailyWord`: a cached `{endpoint, payload}` for this date and this endpoint is final (no request, so offline cold start works); otherwise one fetch with a timeout; otherwise the bundled `dailyWord(date)` with `source: 'bundled'`.
+3. The answer reaches Play tagged with its date. Play only builds a new daily game from an answer whose date is today, so after midnight it waits for the new day's word instead of reusing yesterday's. A saved daily game always keeps its own answer.
+4. The ping (`usePingOnOpen`) also waits for settings, so an opted-out player never sends one, and runs again when the date changes; `maybePing` dedupes per local day from stored state.
+
+## Testing layers
+
+- **Unit (Vitest, node):** everything in `src/game/`, plus pure helpers next to screens (`src/ui/**/*.ts`), the API clients with a fake `fetch` and an in-memory AsyncStorage mock, and `worker/test/` on real D1 in Miniflare.
+- **E2E (Playwright, `app/e2e/`):** the web export with a fixed clock (`page.clock.install`; `setFixedTime` freezes React Native `Animated`), a stubbed `https://words.test` endpoint, and a third-party-host tripwire on every test. Review screenshots land in `app/e2e/artifacts/review/` (git-ignored).
+- **Phone:** feel only (🚩/🛑 rows), through Expo Go.

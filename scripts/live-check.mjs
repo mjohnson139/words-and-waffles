@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Proves the five "Done means" items against the deployed site and Worker.
 // Usage: npm run live-check   (SITE_URL, WORKER_URL override the defaults; SHOW_WORD=1 prints the word)
-// Note: the played game lets the app send its one daily ping to production; that counts one install.
-import { createHash } from 'node:crypto';
+// Each run lets exactly one ping reach production (the request audit), so it counts one install on /stats.
+// Every other browser context aborts its ping. @playwright/test comes from the app workspace (hoisted).
+import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
@@ -13,16 +14,18 @@ const WORKER = (process.env.WORKER_URL || 'https://words-and-waffles.mjohnson139
 const ALLOWED = new Set([new URL(SITE).host, new URL(WORKER).host]);
 const OUT = fileURLToPath(new URL('../app/e2e/artifacts/live/', import.meta.url));
 const BUDGET_KB = 500;
-const WIN = 'Two bites. Showing off before coffee.'; // WIN[2] in app/src/game/play.ts
+// WIN[n] in app/src/game/play.ts, for a win in n guesses.
+const WIN1 = 'Hole in one! Did you peek at the batter?';
+const WIN2 = 'Two bites. Showing off before coffee.';
 mkdirSync(OUT, { recursive: true });
 
 let failed = 0;
-const done = { 1: false, 2: false, 3: false, 4: false, 5: false, 6: false };
-async function check(name, n, fn) {
+const proved = new Set();
+async function check(name, proves, fn) {
   try {
     const detail = await fn();
     console.log(`ok  ${name}: ${detail}`);
-    if (n) done[n] = true;
+    if (proves) proved.add(proves);
     return true;
   } catch (e) {
     failed++;
@@ -39,20 +42,23 @@ const ymd = (d) =>
 const today = new Date();
 const later = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 3);
 const getWord = (date) => fetch(`${WORKER}/v1/word?date=${date}`);
+// The word contract in README.md: cells[i] = hex(sha256(salt + "|" + i + "|" + letter)).slice(0, 16).
+const cell = (salt, i, c) => createHash('sha256').update(`${salt}|${i}|${c}`).digest('hex').slice(0, 16);
+const encode = (word, salt) => [...word].map((c, i) => cell(salt, i, c));
 const decode = (salt, cells) =>
-  cells.map((cell, i) => {
-    const hit = [...'abcdefghijklmnopqrstuvwxyz'].find(
-      (c) => createHash('sha256').update(`${salt}|${i}|${c}`).digest('hex').slice(0, 16) === cell,
-    );
-    assert(hit, `position ${i} did not decode`);
-    return hit;
-  }).join('');
+  cells
+    .map((x, i) => {
+      const hit = [...'abcdefghijklmnopqrstuvwxyz'].find((c) => cell(salt, i, c) === x);
+      assert(hit, `position ${i} did not decode`);
+      return hit;
+    })
+    .join('');
 
 const hosts = (reqs) => [...new Set(reqs.map((r) => new URL(r.url).host))];
 const watch = (page) => {
   const reqs = [];
   page.on('request', (r) => {
-    if (/^https?:/.test(r.url())) reqs.push({ url: r.url(), method: r.method() });
+    if (/^https?:/.test(r.url())) reqs.push({ url: r.url(), method: r.method(), body: r.postData() });
   });
   return reqs;
 };
@@ -60,7 +66,16 @@ const onlyAllowed = (reqs) => {
   const bad = hosts(reqs).filter((h) => !ALLOWED.has(h));
   assert(bad.length === 0, `requests to other hosts: ${bad.join(', ')}`);
 };
+const wordReqs = (reqs) => reqs.filter((r) => r.url.startsWith(`${WORKER}/v1/word`));
+const pingPosts = (reqs) => reqs.filter((r) => r.method === 'POST' && r.url.startsWith(`${WORKER}/v1/ping`));
 const button = (page, name) => page.getByRole('button', { name, exact: true });
+const VIEW = { viewport: { width: 390, height: 844 }, locale: 'en-US' };
+async function quietContext(browser) {
+  // A fresh context is a new install; keep it off the public counters.
+  const ctx = await browser.newContext(VIEW);
+  await ctx.route(`${WORKER}/v1/ping`, (r) => r.abort());
+  return ctx;
+}
 async function openApp(page) {
   await page.goto(SITE + '/');
   await expect(button(page, 'Enter')).toBeVisible();
@@ -71,9 +86,10 @@ async function guess(page, word) {
 }
 
 let answer = '';
+let puzzle = 0;
 
 async function workerChecks() {
-  await check('worker /stats page', 1, async () => {
+  await check('worker /stats page', null, async () => {
     const r = await fetch(`${WORKER}/stats`);
     const body = await r.text();
     assert(r.status === 200, `status ${r.status}`);
@@ -83,27 +99,28 @@ async function workerChecks() {
     assert(!body.includes('<script'), 'page contains <script');
     return 'html, CSP set, no script';
   });
-  await check('worker /stats.json', 0, async () => {
+  await check('worker /stats.json', null, async () => {
     const j = await (await fetch(`${WORKER}/stats.json`)).json();
     assert(typeof j.installs === 'number', 'installs not a number');
     assert(j.days?.length === 30 && j.weeks?.length === 12 && j.months?.length === 12, 'window lengths wrong');
     return `installs ${j.installs}, 30 days, 12 weeks, 12 months`;
   });
-  await check('worker /v1/word', 0, async () => {
+  await check('worker /v1/word', null, async () => {
     const date = ymd(today);
     const r = await getWord(date);
     assert(r.status === 200, `status ${r.status}`);
     const j = await r.json();
     assert(j.v === 1 && j.date === date && j.len === 5 && j.cells?.length === 5, 'unexpected payload shape');
     answer = decode(j.salt, j.cells);
+    puzzle = j.puzzle;
     return `puzzle #${j.puzzle}, ${answer.length} letters decoded${process.env.SHOW_WORD === '1' ? ` (${answer})` : ''}`;
   });
-  await check('worker rejects a future date', 0, async () => {
+  await check('worker rejects a future date', null, async () => {
     const r = await getWord(ymd(later));
     assert(r.status === 400, `status ${r.status}`);
     return 'status 400';
   });
-  await check('worker ping preflight', 0, async () => {
+  await check('worker ping preflight', null, async () => {
     const r = await fetch(`${WORKER}/v1/ping`, { method: 'OPTIONS', headers: { origin: SITE, 'access-control-request-method': 'POST' } });
     assert(r.status === 204, `status ${r.status}`);
     assert(r.headers.get('access-control-allow-origin') === '*', 'allow-origin is not *');
@@ -112,49 +129,61 @@ async function workerChecks() {
 }
 
 async function bundleCheck() {
-  await check('bundle budget', 2, async () => {
+  await check('bundle budget', 'bundle', async () => {
+    // Same measure as scripts/bundle-size.mjs on the local export: gzip of the html, js and css.
     const r = await fetch(SITE + '/');
     assert(r.status === 200, `status ${r.status}`);
-    const src = (await r.text()).match(/_expo\/static\/js\/web\/[^"']+?\.js/)?.[0];
-    assert(src, 'no web bundle script in the HTML');
-    const js = Buffer.from(await (await fetch(`${SITE}/${src}`)).arrayBuffer());
-    const kb = gzipSync(js, { level: 9 }).length / 1024;
+    const html = await r.text();
+    const assets = [...new Set(html.match(/\/?_expo\/static\/(?:js|css)\/[^"']+?\.(?:js|css)/g) ?? [])];
+    assert(assets.some((a) => a.endsWith('.js')), 'no web bundle script in the HTML');
+    let total = gzipSync(Buffer.from(html)).length;
+    for (const a of assets) total += gzipSync(Buffer.from(await (await fetch(`${SITE}/${a.replace(/^\//, '')}`)).arrayBuffer())).length;
+    const kb = total / 1024;
     assert(kb <= BUDGET_KB, `${kb.toFixed(1)} KB gzip is over ${BUDGET_KB} KB`);
-    return `${kb.toFixed(1)} KB gzip of ${BUDGET_KB} KB (main JS only; bundle-size.mjs sums js+css+html)`;
+    return `${kb.toFixed(1)} KB gzip (html + ${assets.length} asset${assets.length === 1 ? '' : 's'}) of ${BUDGET_KB} KB`;
   });
 }
 
-async function playAndOffline(browser) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US' });
+async function playAuditOffline(browser) {
+  const context = await browser.newContext(VIEW);
   const page = await context.newPage();
   const reqs = watch(page);
-  const ready = await check('play: open the live app', 0, async () => {
+  const pingStatus = [];
+  page.on('response', (r) => {
+    if (r.request().method() === 'POST' && r.url().startsWith(`${WORKER}/v1/ping`)) pingStatus.push(r.status());
+  });
+  const ready = await check('play: open the live app', null, async () => {
     assert(answer, 'no decoded word (worker check failed)');
     await openApp(page);
-    await expect.poll(() => reqs.filter((r) => r.url.startsWith(`${WORKER}/v1/word`)).length).toBeGreaterThanOrEqual(1);
+    await expect.poll(() => wordReqs(reqs).length).toBeGreaterThanOrEqual(1);
     return 'Enter key visible, word requested';
   });
   if (!ready) return context.close();
 
-  await check('play: endpoint word wins', 3, async () => {
+  await check('play: the served word wins', null, async () => {
     await guess(page, answer === 'crane' ? 'about' : 'crane');
     await page.waitForTimeout(1800);
     await guess(page, answer);
-    await expect(page.getByText(WIN)).toBeVisible();
+    await expect(page.getByText(WIN2)).toBeVisible();
     await page.waitForTimeout(800);
     await page.screenshot({ path: OUT + 'play-won.png' });
     return 'won in 2 on the decoded word, screenshot saved';
   });
-  await check('play: two requests, our domain only', 6, async () => {
+  await check('play: request audit', 'requests', async () => {
+    await expect.poll(() => pingStatus.length, { timeout: 10_000 }).toBe(1);
     onlyAllowed(reqs);
-    const word = reqs.filter((r) => r.url.startsWith(`${WORKER}/v1/word`)).length;
-    const pings = reqs.filter((r) => r.method === 'POST' && r.url.startsWith(`${WORKER}/v1/ping`)).length;
-    assert(word === 1, `${word} word requests, expected 1`);
-    assert(pings <= 1, `${pings} pings, expected at most 1`);
-    return `${word} word request, ${pings} ping, hosts ${hosts(reqs).join(' + ')}`;
+    const words = wordReqs(reqs).length;
+    const pings = pingPosts(reqs);
+    assert(words === 1, `${words} word requests, expected 1`);
+    assert(pings.length === 1, `${pings.length} pings, expected 1`);
+    assert(pingStatus[0] >= 200 && pingStatus[0] < 300, `ping answered ${pingStatus[0]}`);
+    const body = JSON.parse(pings[0].body ?? '{}');
+    assert(Object.keys(body).sort().join() === 'd,m,n,p,w', `ping keys ${Object.keys(body).sort().join()}`);
+    assert(body.p === 'web' && ['d', 'w', 'm', 'n'].every((k) => typeof body[k] === 'boolean'), 'ping values not as specified');
+    return `1 word request, 1 ping (${pingStatus[0]}, keys d m n p w), hosts ${hosts(reqs).join(' + ')}`;
   });
 
-  await check('offline cold start', 4, async () => {
+  await check('offline cold start to a playable board', 'offline', async () => {
     await page.evaluate(() => navigator.serviceWorker.ready);
     await expect
       .poll(
@@ -170,21 +199,26 @@ async function playAndOffline(browser) {
     await context.setOffline(true);
     try {
       await page.reload();
-      // A finished game replaces the keyboard with the result card, so there is no Enter key here.
-      await expect(page.getByRole('tab', { name: 'Play' })).toBeVisible();
       await expect(page.getByText('The word was')).toBeVisible();
+      // Today's game is finished, so prove the board still plays: start Seconds and take a guess.
+      await button(page, 'Seconds').click();
+      await expect(button(page, 'Enter')).toBeVisible();
+      await guess(page, answer === 'crane' ? 'about' : 'crane');
+      await page.waitForTimeout(1800);
+      const rows = await page.evaluate(() => document.body.innerText.toLowerCase().replace(/\s/g, ''));
+      assert(rows.includes(answer === 'crane' ? 'about' : 'crane'), 'offline guess did not land on the board');
     } finally {
       await context.setOffline(false);
     }
-    return 'cache filled; offline reload shows the saved won game';
+    return 'cache filled; offline reload shows today, and a Seconds guess lands on the board';
   });
 
-  await check('backup restores on another device', 5, async () => {
+  await check('backup restores on another device', 'backup', async () => {
     await page.getByRole('tab', { name: 'Stats' }).click();
     const [download] = await Promise.all([page.waitForEvent('download'), button(page, 'Back up').click()]);
     const file = OUT + 'backup.json';
     await download.saveAs(file);
-    const fresh = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US' });
+    const fresh = await quietContext(browser);
     try {
       const page2 = await fresh.newPage();
       const reqs2 = watch(page2);
@@ -193,16 +227,47 @@ async function playAndOffline(browser) {
       const chooser = page2.waitForEvent('filechooser');
       await button(page2, 'Restore').click();
       await (await chooser).setFiles(file);
-      await expect(page2.getByText(/Restored: 1 new/)).toBeVisible();
-      await expect(page2.getByLabel('1 played')).toBeVisible();
+      await expect(page2.getByText(/Restored: \d+ new/)).toBeVisible();
+      await expect(page2.getByLabel(/^[1-9]\d* played$/)).toBeVisible();
       await page2.screenshot({ path: OUT + 'stats-restored.png' });
       onlyAllowed(reqs2);
     } finally {
       await fresh.close();
     }
-    return 'fresh context restored 1 new game; hosts allowed';
+    return 'fresh context restored the games and the played count; hosts allowed';
   });
   await context.close();
+}
+
+async function endpointSwap(browser) {
+  await check('endpoint swap changes the word', 'endpoint', async () => {
+    // Serve a different word from the same endpoint URL. The bundled fallback would still
+    // be today's list word, so winning on this one proves the app plays what the endpoint says.
+    const other = answer === 'crane' ? 'plumb' : 'crane';
+    const ctx = await quietContext(browser);
+    try {
+      await ctx.route(`${WORKER}/v1/word*`, (route) => {
+        const date = new URL(route.request().url()).searchParams.get('date');
+        const salt = randomBytes(16).toString('hex');
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: { 'access-control-allow-origin': '*' },
+          body: JSON.stringify({ v: 1, date, puzzle, len: 5, salt, cells: encode(other, salt) }),
+        });
+      });
+      const page = await ctx.newPage();
+      const reqs = watch(page);
+      await openApp(page);
+      await expect.poll(() => wordReqs(reqs).length).toBe(1);
+      await guess(page, other);
+      await expect(page.getByText(WIN1)).toBeVisible();
+      onlyAllowed(reqs);
+    } finally {
+      await ctx.close();
+    }
+    return 'a substituted word from the endpoint won in 1, not the bundled word';
+  });
 }
 
 await workerChecks();
@@ -217,24 +282,21 @@ try {
 }
 if (browser) {
   try {
-    await playAndOffline(browser);
+    await playAuditOffline(browser);
+    if (answer) await endpointSwap(browser);
   } finally {
     await browser.close();
   }
 }
 
-const proof = [
-  ['offline cold start', 4],
-  ['two requests, both to our domain', 6],
-  ['endpoint word wins', 1],
-  ['bundle under 500 KB', 2],
-  ['backup restores on another device', 5],
+const doneMeans = [
+  ['offline', 'cold start to a playable board offline, after one visit'],
+  ['requests', 'two requests a day, both to our domain'],
+  ['endpoint', 'swapping the word endpoint changes the word'],
+  ['bundle', 'web bundle under 500 KB gzipped'],
+  ['backup', 'a backup from one device restores on another'],
 ];
 console.log('\nDone means:');
-for (const [label, n] of proof) {
-  const label2 = { 4: '(offline check)', 6: '(request audit)', 1: '(worker word + play win)', 2: '(bundle check)', 5: '(backup check)' }[n];
-  const ok = n === 1 ? done[1] && done[3] : done[n];
-  console.log(`${ok ? 'ok  ' : 'FAIL'} ${label} ${label2}`);
-}
+for (const [key, label] of doneMeans) console.log(`${proved.has(key) ? 'ok  ' : 'FAIL'} ${label}`);
 console.log(failed ? `\n${failed} check(s) failed` : '\nall checks passed');
 process.exit(failed ? 1 : 0);

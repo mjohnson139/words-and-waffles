@@ -121,6 +121,26 @@ describe('POST /v1/ping', () => {
     expect(await rows()).toEqual({});
   });
 
+  it('a dry run is validated and answered but writes nothing', async () => {
+    const dry = (body: unknown, ip: string) =>
+      call('/v1/ping', {
+        method: 'POST',
+        headers: { 'CF-Connecting-IP': ip, 'X-Dry-Run': '1' },
+        body: JSON.stringify(body),
+      });
+    expect((await dry(good, '7.7.7.1')).status).toBe(204);
+    expect((await dry({ ...good, x: 1 }, '7.7.7.2')).status).toBe(400);
+    expect(await rows()).toEqual({});
+    // Any other value is an ordinary ping.
+    const res = await call('/v1/ping', {
+      method: 'POST',
+      headers: { 'CF-Connecting-IP': '7.7.7.3', 'X-Dry-Run': 'true' },
+      body: JSON.stringify(good),
+    });
+    expect(res.status).toBe(204);
+    expect((await rows()).installs).toBe(1);
+  });
+
   it('rate limits pings beyond MAX_PER_HOUR from one IP', async () => {
     for (let i = 0; i < MAX_PER_HOUR; i++) expect((await ping(good, '5.5.5.5')).status).toBe(204);
     const res = await ping(good, '5.5.5.5');

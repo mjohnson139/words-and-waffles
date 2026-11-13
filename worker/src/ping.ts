@@ -72,6 +72,9 @@ export async function handlePing(
   if (Number(request.headers.get('Content-Length') ?? 0) > MAX_BODY) return errorResponse(400, 'invalid ping');
   const ping = parsePing(await request.text());
   if (!ping) return errorResponse(400, 'invalid ping');
+  // A dry run is validated like any ping but never counted (the production live
+  // check uses it). It can only make a ping not count, so it needs no secret.
+  if (request.headers.get('X-Dry-Run') === '1') return new Response(null, { status: 204 });
 
   const utcDate = new Date(now).toISOString().slice(0, 10);
   const stmt = env.DB.prepare(

@@ -73,6 +73,17 @@ export function triesSummary(date: string, get: (key: string) => number): Tries 
   return { date, counts, played, won, winRate: played ? Math.round((100 * won) / played) : 0 };
 }
 
+/**
+ * The puzzle "Today's word" shows. Results carry the player's local date, so
+ * around UTC midnight most players are still on yesterday's word (or already on
+ * tomorrow's). Show whichever of the three has the most finished games; ties go
+ * to the UTC date, then yesterday.
+ */
+export function currentTries(today: string, get: (key: string) => number): Tries {
+  const options = [today, addDays(today, -1), addDays(today, 1)].map((d) => triesSummary(d, get));
+  return options.reduce((best, t) => (t.played > best.played ? t : best));
+}
+
 export async function loadStats(db: D1Database, now: number): Promise<Stats> {
   const { results } = await db.prepare('SELECT key, n FROM counts').all<{ key: string; n: number }>();
   const counts = new Map(results.map((r) => [r.key, r.n]));
@@ -106,7 +117,7 @@ export async function loadStats(db: D1Database, now: number): Promise<Stats> {
       month: row(monthOf(today), `month:${monthOf(today)}`),
     },
     year: yearGrid(today, get),
-    tries: triesSummary(today, get),
+    tries: currentTries(today, get),
   };
 }
 
@@ -115,6 +126,12 @@ const esc = (v: string | number): string =>
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/** "Thu, Nov 12" for a YYYY-MM-DD date. */
+const dayLabel = (date: string): string => {
+  const dow = (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
+  return `${DAYS[dow]}, ${MONTHS[Number(date.slice(5, 7)) - 1]} ${Number(date.slice(8, 10))}`;
+};
 const PLATFORM_NAMES = { ios: 'iOS', android: 'Android', web: 'Web' } as const;
 
 const cellTitle = (c: Cell, row: number): string => {
@@ -155,7 +172,7 @@ const triesBars = (t: Tries): string => {
     }" style="width:${width}%">${esc(n)}</span></div>`;
   }).join('');
   const line = t.played
-    ? `${esc(t.played)} finished &middot; ${esc(t.winRate)}% won`
+    ? `${esc(dayLabel(t.date))} &middot; ${esc(t.played)} finished &middot; ${esc(t.winRate)}% won`
     : 'No plates cleared yet today.';
   return `${rows}<p class="muted">${line}</p>`;
 };

@@ -67,6 +67,7 @@ The limits, stated honestly:
 - Counts are per device or browser, not per person.
 - Clearing a browser counts it again.
 - The stats page's "today" is the UTC date, so near midnight some players are already on the next word.
+- A result can be counted twice: if the answer is slow to come back, the app tries again on the next launch, and restoring a backup on a new device sends today's result again.
 - Anyone can send fake counts.
 
 ## Turning the counts off

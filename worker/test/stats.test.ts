@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dnum } from '../../app/src/game/dates';
-import { heatLevel, triesSummary, yearGrid } from '../src/stats';
+import { currentTries, heatLevel, triesSummary, yearGrid } from '../src/stats';
 
 describe('heatLevel', () => {
   it('is 0 for nothing and scales 1..4 against the max', () => {
@@ -53,5 +53,21 @@ describe('triesSummary', () => {
 
   it('is zero when nobody played', () => {
     expect(triesSummary('2026-11-13', () => 0)).toMatchObject({ played: 0, won: 0, winRate: 0 });
+  });
+});
+
+describe('currentTries', () => {
+  const at = (data: Record<string, number>) => (k: string) => data[k] ?? 0;
+  it('shows the UTC date when it has the most results', () => {
+    expect(currentTries('2026-11-13', at({ 'tries:2026-11-13:3': 2, 'tries:2026-11-12:3': 1 })).date).toBe('2026-11-13');
+  });
+  it("shows yesterday's word while most players are still on it", () => {
+    expect(currentTries('2026-11-13', at({ 'tries:2026-11-13:3': 1, 'tries:2026-11-12:x': 5 })).date).toBe('2026-11-12');
+  });
+  it('shows tomorrow when only players east of UTC have finished', () => {
+    expect(currentTries('2026-12-31', at({ 'tries:2027-01-01:1': 1 })).date).toBe('2027-01-01');
+  });
+  it('falls back to the UTC date with no results at all', () => {
+    expect(currentTries('2026-11-13', at({}))).toMatchObject({ date: '2026-11-13', played: 0 });
   });
 });

@@ -22,6 +22,7 @@
     "react-native-web": "^0.21.4"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/react": "~19.3.0",
     "eslint": "^9.39.5",
     "eslint-config-expo": "^58.0.4",
@@ -39,7 +40,8 @@
     "lint": "eslint . --max-warnings 0",
     "export:web": "expo export -p web",
     "size": "node ../scripts/bundle-size.mjs",
-    "verify": "npm run typecheck && npm run lint && npm test && npm run export:web && npm run size"
+    "verify": "npm run typecheck && npm run lint && npm test && npm run export:web && npm run size",
+    "e2e": "EXPO_PUBLIC_WORD_ENDPOINT=https://words.test/v1/word EXPO_PUBLIC_PING_ENDPOINT=https://words.test/v1/ping expo export -p web --clear && playwright test --trace off"
   },
   "private": true
 }

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Proves the five "Done means" items against the deployed site and Worker.
 // Usage: npm run live-check   (SITE_URL, WORKER_URL override the defaults; SHOW_WORD=1 prints the word)
-// The request audit sends the app's real ping to production with `X-Dry-Run: 1`, which the Worker
-// validates and answers but never counts; every other browser context aborts its ping. A run leaves
+// The request audit sends the app's real ping and end-of-game result to production with `X-Dry-Run: 1`,
+// which the Worker validates and answers but never counts; every other browser context aborts both. A run leaves
 // /stats unchanged, and the last check proves it. @playwright/test comes from the app workspace (hoisted).
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
@@ -68,6 +68,7 @@ const onlyAllowed = (reqs) => {
   assert(bad.length === 0, `requests to other hosts: ${bad.join(', ')}`);
 };
 const wordReqs = (reqs) => reqs.filter((r) => r.url.startsWith(`${WORKER}/v1/word`));
+const resultPosts = (reqs) => reqs.filter((r) => r.method === 'POST' && r.url.startsWith(`${WORKER}/v1/result`));
 const pingPosts = (reqs) => reqs.filter((r) => r.method === 'POST' && r.url.startsWith(`${WORKER}/v1/ping`));
 const button = (page, name) => page.getByRole('button', { name, exact: true });
 const VIEW = { viewport: { width: 390, height: 844 }, locale: 'en-US' };
@@ -75,6 +76,7 @@ async function quietContext(browser) {
   // A fresh context is a new install; keep it off the public counters.
   const ctx = await browser.newContext(VIEW);
   await ctx.route(`${WORKER}/v1/ping`, (r) => r.abort());
+  await ctx.route(`${WORKER}/v1/result`, (r) => r.abort());
   return ctx;
 }
 async function openApp(page) {
@@ -89,6 +91,7 @@ async function guess(page, word) {
 let answer = '';
 let puzzle = 0;
 let installsBefore = null;
+let playedBefore = null;
 
 async function workerChecks() {
   await check('worker /stats page', null, async () => {
@@ -105,6 +108,7 @@ async function workerChecks() {
     const j = await (await fetch(`${WORKER}/stats.json`)).json();
     assert(typeof j.installs === 'number', 'installs not a number');
     installsBefore = j.installs;
+    playedBefore = j.tries?.played ?? null;
     assert(j.days?.length === 30 && j.weeks?.length === 12 && j.months?.length === 12, 'window lengths wrong');
     return `installs ${j.installs}, 30 days, 12 weeks, 12 months`;
   });
@@ -150,12 +154,16 @@ async function bundleCheck() {
 async function playAuditOffline(browser) {
   const context = await browser.newContext(VIEW);
   // The real ping, as the app built it, reaches the real Worker; the header keeps it off the counters.
-  await context.route(`${WORKER}/v1/ping`, (r) => r.continue({ headers: { ...r.request().headers(), 'x-dry-run': '1' } }));
+  const dryRun = (r) => r.continue({ headers: { ...r.request().headers(), 'x-dry-run': '1' } });
+  await context.route(`${WORKER}/v1/ping`, dryRun);
+  await context.route(`${WORKER}/v1/result`, dryRun);
   const page = await context.newPage();
   const reqs = watch(page);
   const pingStatus = [];
+  const resultStatus = [];
   page.on('response', (r) => {
     if (r.request().method() === 'POST' && r.url().startsWith(`${WORKER}/v1/ping`)) pingStatus.push(r.status());
+    if (r.request().method() === 'POST' && r.url().startsWith(`${WORKER}/v1/result`)) resultStatus.push(r.status());
   });
   const ready = await check('play: open the live app', null, async () => {
     assert(answer, 'no decoded word (worker check failed)');
@@ -185,7 +193,15 @@ async function playAuditOffline(browser) {
     const body = JSON.parse(pings[0].body ?? '{}');
     assert(Object.keys(body).sort().join() === 'd,m,n,p,w', `ping keys ${Object.keys(body).sort().join()}`);
     assert(body.p === 'web' && ['d', 'w', 'm', 'n'].every((k) => typeof body[k] === 'boolean'), 'ping values not as specified');
-    return `1 word request, 1 ping (${pingStatus[0]}, keys d m n p w), hosts ${hosts(reqs).join(' + ')}`;
+    // The game above was won in 2, so the app sent one end-of-game result.
+    await expect.poll(() => resultStatus.length, { timeout: 10_000 }).toBe(1);
+    const results = resultPosts(reqs);
+    assert(results.length === 1, `${results.length} results, expected 1`);
+    assert(resultStatus[0] >= 200 && resultStatus[0] < 300, `result answered ${resultStatus[0]}`);
+    const res = JSON.parse(results[0].body ?? '{}');
+    assert(Object.keys(res).sort().join() === 'd,g', `result keys ${Object.keys(res).sort().join()}`);
+    assert(res.g === 2 && /^\d{4}-\d\d-\d\d$/.test(res.d), 'result values not as specified');
+    return `1 word request, 1 ping (${pingStatus[0]}, keys d m n p w), 1 result (${resultStatus[0]}, g 2), hosts ${hosts(reqs).join(' + ')}`;
   });
 
   await check('offline cold start to a playable board', 'offline', async () => {
@@ -298,12 +314,14 @@ await check('stats not inflated by this run', null, async () => {
   const j = await (await fetch(`${WORKER}/stats.json`, { cache: 'no-store' })).json();
   assert(installsBefore !== null, 'no starting count');
   assert(j.installs === installsBefore, `installs went from ${installsBefore} to ${j.installs}`);
-  return `installs still ${j.installs}`;
+  const played = j.tries?.played ?? null;
+  assert(played === playedBefore, `today's finished games went from ${playedBefore} to ${played}`);
+  return `installs still ${j.installs}${played === null ? '' : `, finished today still ${played}`}`;
 });
 
 const doneMeans = [
   ['offline', 'cold start to a playable board offline, after one visit'],
-  ['requests', 'two requests a day, both to our domain'],
+  ['requests', 'three requests a day at most (word, ping, result), all to our domain'],
   ['endpoint', 'swapping the word endpoint changes the word'],
   ['bundle', 'web bundle under 500 KB gzipped'],
   ['backup', 'a backup from one device restores on another'],

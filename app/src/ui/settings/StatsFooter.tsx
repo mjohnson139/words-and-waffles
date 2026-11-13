@@ -115,17 +115,17 @@ export function StatsFooter({ games, restore: restoreGames, settings, update }: 
         <Text style={{ fontWeight: '800', color: t.ink, fontSize: 15, marginBottom: 6 }}>What we count</Text>
         <Note>
           Once a day the app tells our server that someone opened it today, whether it is the first open this week,
-          this month or ever, and which platform it runs on. No name, no ID, nothing about your games. The counts are
-          public.
+          this month or ever, and which platform it runs on. When you finish the daily word it also sends the date and
+          how many tries it took. No name, no ID, nothing else about your games. The counts are public.
         </Note>
         <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
           {counts ? <LinkText label="See the counts" onPress={() => void Linking.openURL(counts)} /> : null}
           <LinkText label="Privacy details" onPress={() => void Linking.openURL(PRIVACY_URL)} />
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
-          <Text style={{ color: t.ink, fontSize: 14.5, fontWeight: '700' }}>Send the daily count</Text>
+          <Text style={{ color: t.ink, fontSize: 14.5, fontWeight: '700' }}>Send the daily counts</Text>
           <Switch
-            accessibilityLabel="Send the daily count"
+            accessibilityLabel="Send the daily counts"
             value={settings.pingEnabled}
             onValueChange={(v) => update({ pingEnabled: v })}
           />

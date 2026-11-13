@@ -38,29 +38,31 @@ Rules: logic in pure, node-tested modules; no new dependency without a reason in
 | N2 | Ping client | done (session 1) |
 | E1 | Playwright smoke in CI | done (session 1) |
 | R1 | Fixes from the session 1 review (rollover race, Enter on web, per-day ping, cache keyed by endpoint, settings writes, Worker headers) | done (session 1) |
-| S1 | Ship prep: service worker, deploy workflows, EAS config, icons, store copy | **next** |
-| 🛑 A | Owner: Cloudflare, D1, secrets, domain, Expo account; first deploy | |
+| S1 | Ship prep: service worker, deploy workflows, EAS config, icons, store copy | done (session 1) |
+| 🛑 A | Owner: merge session 1's PR, Cloudflare, D1, secrets, domain; first deploy | **next** |
 | S2 | Live checks of "Done means", README link and screenshot, repo settings | |
 | 🛑 B | Owner: store accounts, EAS build and submit | |
 
-## Next step: S1, ship prep
+## Next step: 🛑 A, the owner deploys
 
-- **Goal:** everything needed to deploy exists and is tested, so the owner's 🛑 A is only creating accounts, pasting secrets and pressing go. After S1 the web app works offline after one visit.
-- **Requirements:** plan "S1 - ship prep"; brief "Stack" (Pages, EAS), "The public repo" (CI deploys from `main` only, repo description and topics), "Done means" (offline cold start, bundle size).
-- **Units and delegation** (see `.claude/skills/delegate/SKILL.md`):
-  1. `implementer`: `app/public/sw.js` service worker (cache the shell and hashed bundles on install/first fetch, cache-first for same-origin static GETs, never cache `/v1/*` or cross-origin), registered from a tiny web-only module in production builds; an e2e test that loads once, goes offline (`context.setOffline(true)`), reloads and wins a game. Check how `expo export -p web` copies `app/public/` (Expo SDK 58 docs) before relying on it.
-  2. `implementer`: `.github/workflows/deploy.yml` on push to `main` only: Worker (`wrangler d1 migrations apply --remote` then `wrangler deploy`) and Pages (`expo export -p web` with `EXPO_PUBLIC_WORD_ENDPOINT`/`EXPO_PUBLIC_PING_ENDPOINT` from repository variables, then `wrangler pages deploy`). Each job is skipped with a visible notice when `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID` are absent. Least-privilege `permissions`. A Cloudflare WAF rate-limit rule for `/v1/ping` is documented for the owner (deferred review finding 8).
-  3. `mechanic`: `docs/deploy.md`, the owner's checklist for 🛑 A (Cloudflare account, `wrangler d1 create`, put the id in `worker/wrangler.toml`, `WORD_SECRET`, API token scopes, GitHub secrets and variables, Pages project with Web Analytics off, optional custom domain, Expo account and `eas init`), and `docs/store-listing.md` (name, subtitle, description, keywords without "Wordle", privacy label "Data not collected", support URL).
-  4. `implementer`: `app/app.json` (name "Words & Waffles", slug, scheme, bundle id / package `app.wordsandwaffles` per the open question, `userInterfaceStyle: automatic`, splash and icons), `app/eas.json` (development, preview, production), and icons and splash rendered from the waffle logo SVG by a script in `scripts/` (any rasterizing via the preinstalled Playwright Chromium, no new dependency).
-- **Decide in this step:** whether the service worker should also cache the word payload (no: the app already caches it in storage); how Pages gets the endpoint values (repository variables, not secrets, because they are public URLs).
-- **Definition of done:**
-  - [ ] Offline e2e test green; `npm run e2e -w app` green.
-  - [ ] Deploy workflow passes `actionlint` (run it with `npx --yes actionlint` if available, else review by hand) and skips cleanly without secrets.
-  - [ ] `npm run verify` green.
-  - [ ] Review run and answered.
-  - [ ] This file rewritten for 🛑 A (the owner checklist from `docs/deploy.md`, then S2).
-- **Not this step:** deploying anything (🛑 A), the live checks (S2), store submission (🛑 B), retrying a failed cold-start word fetch (deferred review finding 5, below).
-- **What already exists:** the whole app and Worker (see [engineering notes](engineering-notes.md)); CI in `.github/workflows/ci.yml` (verify job, e2e job); the e2e harness in `app/e2e/` (`fixtures.ts` fixes the clock with `page.clock.install`, stubs `https://words.test`, fails on third-party hosts; `serve.mjs` serves `app/dist`); `worker/wrangler.toml` with a placeholder D1 id; `worker/README.md`.
+**If a session starts before 🛑 A is done** (no Cloudflare secrets in the repo and no owner comment saying it is deployed): do not wait. Fix deferred finding 5 below (retry a failed cold-start word fetch on app foreground while today's game has no guesses; pure decision logic with tests, an e2e test that aborts the first request and serves the second), review it, push, and stop.
+
+Everything up to the deploy is built and tested in the cloud: 142 app unit tests, 17 Worker tests on real D1, 15 Playwright tests against the web export (including offline after one visit and a third-party-host tripwire), web bundle ~240 KB of the 500 KB budget. Nothing is deployed and no account exists yet.
+
+**What the owner does** (about 20 minutes; every command is in [docs/deploy.md](deploy.md)):
+
+1. Merge session 1's PR into `main`. The Deploy workflow runs and skips with a notice, because no secrets exist yet. CI should be green.
+2. Follow `docs/deploy.md` steps 1-6: create the D1 database and commit its id into `worker/wrangler.toml`; `wrangler secret put WORD_SECRET`; create the API token; add the GitHub secrets (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) and variables (`WORD_ENDPOINT`, `PING_ENDPOINT`); create the Pages project with Web Analytics off; run Actions → Deploy.
+3. Answer the open questions below that matter before going public (licence, domain, bundle id, share text).
+4. 🚩 Optional, any time: `npm install -g npm@11.21.2 && npm install && npm start -w app`, open it in Expo Go on a phone, and play a game. Note on the PR anything that feels off (animations, haptics, keyboard size, the share sheet for Back up).
+
+**What the owner tells the next session** (as a comment on the PR or an issue, or simply by starting it): the deployed Worker URL and Pages URL. The next session reads them from the repository variables and `wrangler.toml` if they are there.
+
+**Then S2 (the next agent step), in short:**
+- Goal: prove each "Done means" item against production and finish the public face of the repo.
+- Units: an `implementer` writes `scripts/live-check.mjs` (Playwright against the live Pages URL: play a game, assert only the two own hosts are contacted, exactly one word request and at most one ping, offline reload works; curl `/stats` and `/stats.json`; `/v1/word` for today decodes; a future date is rejected), runs it, and records the evidence in the PR. A `mechanic` adds the live link and a GIF or screenshot of a win (from the e2e review screenshots against production) to the README. The orchestrator checks "swapping `EXPO_PUBLIC_WORD_ENDPOINT` changes the word" with a local `wrangler dev` on another secret, and "a backup from one device restores on another" (the e2e backup test against production).
+- Repo settings the owner applies (agents cannot): description "A cosy daily word game. No accounts, no trackers.", topics `expo`, `react-native`, `word-game`, `privacy`, `cloudflare-workers`, website = the Pages URL.
+- Then 🛑 B: store accounts and `eas build` / `eas submit` (docs/deploy.md "Phone builds", docs/store-listing.md).
 
 ## Deferred findings (from the session 1 review)
 
@@ -72,7 +74,7 @@ Rules: logic in pure, node-tested modules; no new dependency without a reason in
 Each has a default the work proceeds on.
 
 - **Licence:** MIT (brief default). Change before the repo is promoted?
-- **Domain:** default `*.workers.dev` for the Worker and `*.pages.dev` for the site until you pick one.
-- **Bundle ID / package name:** default `app.wordsandwaffles`.
+- **Domain:** default `*.workers.dev` for the Worker and `*.pages.dev` for the site until you pick one. With a custom domain, the ping rate-limit rule in `docs/deploy.md` step 8 becomes available.
+- **Bundle ID / package name:** `app.wordsandwaffles` is set in `app/app.json`. Change it before the first store build if you prefer another; it cannot change after.
 - **Share text:** daily results add the puzzle number (`Words & Waffles 🧇 #12 · Thu, Nov 12 · 3/6`). Keep?
 - **Phase 2 sync** (iCloud KV, Android backup) is out of v1: it needs native code and breaks Expo Go. Want it later?

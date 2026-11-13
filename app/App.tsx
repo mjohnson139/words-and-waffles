@@ -24,7 +24,7 @@ export default function App() {
   const t = useTheme();
   const [fontsLoaded, fontError] = useFonts({ BagelFatOne_400Regular });
   const [tab, setTab] = useState<Tab>(Platform.OS === 'web' ? fromHash() : 'play');
-  const { games } = useGames();
+  const { ready, games, saveGame } = useGames();
 
   // Web: mirror the tab to location.hash both ways (prototype lines 578-585).
   useEffect(() => {
@@ -47,7 +47,7 @@ export default function App() {
         <Table>
           <SafeAreaView style={{ flex: 1, gap: 8 }} edges={['top', 'bottom']}>
             <Header tab={tab} onTab={go} />
-            {tab === 'play' && <PlayScreen games={games} />}
+            {tab === 'play' && <PlayScreen games={games} saveGame={saveGame} ready={ready} />}
             {tab === 'history' && <HistoryScreen games={games} />}
             {tab === 'stats' && <StatsScreen games={games} />}
           </SafeAreaView>

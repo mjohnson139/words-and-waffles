@@ -46,7 +46,7 @@ Repo → Settings → Secrets and variables → Actions.
    - `WORD_ENDPOINT` = `https://words-and-waffles.<your-subdomain>.workers.dev/v1/word`
    - `PING_ENDPOINT` = `https://words-and-waffles.<your-subdomain>.workers.dev/v1/ping`
    - `PAGES_PROJECT` (optional; default `words-and-waffles`)
-3. Recommended: create a `production` environment (Settings → Environments) with yourself as a required reviewer. The deploy jobs use it, so every deploy then waits for your approval, and nobody who can push to `main` can ship without it.
+3. Recommended: create a `production` environment (Settings → Environments) with yourself as a required reviewer. The workflow's one `deploy` job uses it, so every deploy then waits for your approval (once per run), and nobody who can push to `main` can ship without it.
 
 ## 5. Create the Pages project
 
@@ -57,7 +57,8 @@ Repo → Settings → Secrets and variables → Actions.
 ## 6. Deploy
 
 1. Merge to `main`, or go to Actions → Deploy → Run workflow.
-2. The workflow:
+2. Approve the run once, if you set up the `production` environment. Its one `deploy` job then, in order:
+   - checks the two endpoint variables,
    - applies the D1 migrations,
    - deploys the Worker,
    - builds the web app with the two endpoint variables,

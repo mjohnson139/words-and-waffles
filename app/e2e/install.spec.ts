@@ -58,7 +58,7 @@ test('index.html carries the install head tags once', async ({ request }) => {
   const html = await (await request.get('/')).text();
   expect(html).toContain('<link rel="manifest" href="/manifest.webmanifest"');
   expect(html).toContain('<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"');
-  expect(html).toContain('name="apple-mobile-web-app-title" content="Words &amp; Waffles"');
+  expect(html).toContain('name="apple-mobile-web-app-title" content="Waffles"');
   expect(html).toContain('name="apple-mobile-web-app-capable" content="yes"');
   expect(html).toContain('name="mobile-web-app-capable" content="yes"');
   expect(html).toContain('name="apple-mobile-web-app-status-bar-style" content="default"');
@@ -78,4 +78,6 @@ test('Chromium reads the manifest without errors', async ({ page }) => {
   const { url, errors } = await cdp.send('Page.getAppManifest');
   expect(url).toMatch(/\/manifest\.webmanifest$/);
   expect(errors).toEqual([]);
+  const { installabilityErrors } = await cdp.send('Page.getInstallabilityErrors');
+  expect(installabilityErrors).toEqual([]);
 });

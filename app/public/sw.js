@@ -32,6 +32,7 @@ const NAV_TIMEOUT_MS = 3000;
 const STATIC = /^\/(_expo\/static\/|assets\/|favicon\.ico)|\.(?:webmanifest|js|css|png|jpe?g|svg|webp|ico|ttf|otf|woff2?)$/;
 const MANAGED = /^\/(_expo\/static|assets)\//;
 // Home-screen install files (W2); not under MANAGED, so they are never pruned.
+// They are cache-first and only fetched when missing: bump VERSION whenever one changes.
 const INSTALL_FILES = [
   '/manifest.webmanifest',
   '/icons/icon-192.png',
@@ -94,9 +95,11 @@ async function store(cache, res) {
     // Assets get cached on the next controlled load.
   }
   // Best effort: a miss is cached on first use (STATIC) and never fails install.
-  for (const path of INSTALL_FILES) {
-    if (!(await cache.match(path))) await fetchAndCache(cache, path);
-  }
+  await Promise.all(
+    INSTALL_FILES.map(async (path) => {
+      if (!(await cache.match(path))) await fetchAndCache(cache, path);
+    }),
+  );
 }
 
 self.addEventListener('install', (event) => {

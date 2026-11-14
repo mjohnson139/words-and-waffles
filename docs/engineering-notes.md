@@ -41,6 +41,12 @@ The current architecture map and the invariants that are easy to break. Read the
 - `App.tsx` notices the fragment (launch or `hashchange`) and replaces it with `#play`; `PlayScreen` opens it with `resolveLink` once games are loaded. The game id is `c-<salt>`, so the same link reopens the same game.
 - Links point at `location` on web and at `EXPO_PUBLIC_SITE_URL` on native; empty hides the share buttons. Opening links in the installed apps (universal links) is not built yet.
 
+## Home-screen install (W2)
+
+- `app/public/index.html` is the web page template: `expo export -p web` uses it instead of Expo's default, fills `%LANG_ISO_CODE%` and `%WEB_TITLE%`, appends the bundle script and the favicon, and appends a plain `theme-color` from `app.json`. So the template holds only the dark `theme-color` (before Expo's, because the first matching tag wins) plus the manifest and Apple tags.
+- `app/public/manifest.webmanifest` and `app/public/icons/` (made by `scripts/make-icons.mjs --web`). The home-screen label is "Waffles" on both platforms.
+- `sw.js` precaches the manifest and icons only when missing and never prunes them: **bump `VERSION` whenever one of them changes**, or installed users keep the old one. Bumping `VERSION` means updating the `waffles-vN` cache name in `app/e2e/offline.spec.ts` too.
+
 ## Testing layers
 
 - **Unit (Vitest, node):** everything in `src/game/`, plus pure helpers next to screens (`src/ui/**/*.ts`), the API clients with a fake `fetch` and an in-memory AsyncStorage mock, and `worker/test/` on real D1 in Miniflare.

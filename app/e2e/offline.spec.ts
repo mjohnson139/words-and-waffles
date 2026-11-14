@@ -12,9 +12,9 @@ test('after the first visit the app loads and plays with no network', async ({ p
   await expect
     .poll(() =>
       page.evaluate(async () => {
-        const keys = await (await caches.open('waffles-v1')).keys();
+        const keys = await (await caches.open('waffles-v2')).keys();
         const urls = keys.map((k) => new URL(k.url).pathname);
-        return urls.includes('/') && urls.some((u) => u.endsWith('.ttf')) && urls.some((u) => u.startsWith('/_expo/static/js/'));
+        return urls.includes('/') && urls.includes('/manifest.webmanifest') && urls.includes('/icons/icon-192.png') && urls.some((u) => u.endsWith('.ttf')) && urls.some((u) => u.startsWith('/_expo/static/js/'));
       }),
     )
     .toBe(true);
@@ -39,6 +39,6 @@ test('HTML served for a missing asset path is not cached', async ({ page }) => {
   const missing = '/_expo/static/js/web/missing.js';
   const type = await page.evaluate(async (path) => (await fetch(path)).headers.get('content-type'), missing);
   expect(type).toContain('text/html');
-  const cached = await page.evaluate(async (path) => !!(await (await caches.open('waffles-v1')).match(path)), missing);
+  const cached = await page.evaluate(async (path) => !!(await (await caches.open('waffles-v2')).match(path)), missing);
   expect(cached).toBe(false);
 });

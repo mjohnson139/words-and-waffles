@@ -44,9 +44,9 @@ Rules: logic in pure, node-tested modules; no new dependency without a reason in
 | F1 | Share a word by link | done (session 3, PR #4) |
 | F2 | Stats page v2: the app's look, year heatmap, tries chart from a second anonymous event | done (session 4, PR #5, ahead of 🛑 B) |
 | W2 | Home-screen install on the web: manifest, apple-touch-icon, icons | done (session 5, PR #6; live once deployed) |
-| K1 | Keyboard bottom padding on the web, so typing near the bottom edge does not hit the browser's own buttons (owner, 2026-11-14) | **next** (do K1 and CI2 together in one PR) |
-| CI2 | Deploy workflow: one approval per deploy instead of one per job (owner, 2026-11-14) | **next**, with K1 |
-| S3 | Store screenshots from production at the `docs/store-listing.md` sizes | after K1 + CI2 (default filler while 🛑 B waits; owner may pick another) |
+| K1 | Keyboard bottom padding on the web, so typing near the bottom edge does not hit the browser's own buttons (owner, 2026-11-14) | done (session 6, PR #8) |
+| CI2 | Deploy workflow: one approval per deploy instead of one per job (owner, 2026-11-14) | done (session 6, PR #8; owner confirms one approval on its merge) |
+| S3 | Store screenshots from production at the `docs/store-listing.md` sizes | **next** (default filler while 🛑 B waits; owner may pick another) |
 | 🛑 B | Owner: store accounts, EAS build and submit | open: owner, whenever they are at their Mac; does not block W2 |
 | F3 | Channels: a group code with a stored daily word (needs an owner decision first) | |
 
@@ -56,45 +56,14 @@ Live since 2026-11-13, on the default domains:
 
 - Site: `https://words-and-waffles.pages.dev` (Cloudflare Pages project `words-and-waffles`, Web Analytics off).
 - Worker: `https://words-and-waffles.mjohnson139.workers.dev` (`/v1/word`, `/v1/ping`, `/stats`, `/stats.json`), D1 database `words-and-waffles`, `WORD_SECRET` set.
-- Deploy: merging to `main` runs CI, then the Deploy workflow, whose `worker` and `web` jobs wait for the owner's approval on the `production` environment. Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` and variables `WORD_ENDPOINT` and `PING_ENDPOINT` are set in the repo.
+- Deploy: merging to `main` runs CI, then the Deploy workflow, whose one `deploy` job (D1 migrations, Worker, web export, Pages, in that order) waits for the owner's approval on the `production` environment, once per run (CI2). Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` and variables `WORD_ENDPOINT` and `PING_ENDPOINT` are set in the repo.
 - `npm run live-check` (`scripts/live-check.mjs`) proves the five "Done means" items against production in about a minute. Its ping goes to production with `X-Dry-Run: 1`, which the Worker validates but never counts, and its last check proves `/stats` did not move. Run it after any deploy.
 
-Checks at the end of W2: 176 app unit tests, 45 Worker tests on real D1, 33 Playwright tests, web bundle 242.5 KB of the 500 KB budget locally. From W2 the live check also fetches `/manifest.webmanifest` and its icons (`home-screen install files`); it fails until the W2 web build is deployed, because Pages answers unknown paths with `index.html`.
+Checks at the end of K1 + CI2: 177 app unit tests, 45 Worker tests on real D1, 36 Playwright tests, web bundle 242.6 KB of the 500 KB budget locally. The live check also fetches `/manifest.webmanifest` and its icons (`home-screen install files`, from W2).
 
-## Next step: K1 + CI2 (two small owner todos, one PR)
+## Next step: S3, store screenshots from production
 
-Owner asked for both on 2026-11-14. Do them in one branch and PR, then go on to S3 (below) in the same session if context allows. Check the latest owner comments on PR #6 and any newer PR first.
-
-### K1: keyboard bottom padding on the web
-
-**Goal:** on a phone browser (iOS Safari, Android Chrome), the bottom row of the on-screen keyboard (Enter, the bottom letters, Delete) sits far enough above the browser's own bottom bar (Safari's tab bar, Android's gesture area) that a fast tap on a key does not land on a browser button.
-
-**Where:** `app/src/ui/play/Keyboard.tsx:80` (`kb` style, `paddingBottom: 10`); `app/src/ui/screens/PlayScreen.tsx:44,235` (the board's fit takes `kbHeight + insets.bottom`, so extra padding shrinks the tiles, not the keyboard). `react-native-safe-area-context` gives `insets.bottom`; on the web it is `env(safe-area-inset-bottom)`, which is 0 in a Safari tab and non-zero in the installed W2 app. The page template `app/public/index.html` has `viewport` without `viewport-fit=cover`, so the inset is 0 everywhere on the web today.
-
-**Decide in this step:** the padding, with evidence from screenshots at 390x844 and 360x780 (Playwright, `isMobile`, `hasTouch`). Default: on the web only (`Platform.OS === 'web'`), padding bottom = `max(insets.bottom, 20)`. Native keeps its insets as now. Whether to add `viewport-fit=cover` so the installed app gets the real home-indicator inset (default: yes, and check that the header still clears the notch with `insets.top`).
-
-**Definition of done:** the e2e smoke still fits the board without scrolling at 360x640 and 390x844 (`app/e2e/smoke.spec.ts` has the fit checks); PR has before/after screenshots; the owner test is in the PR body (type fast on the bottom row in Safari).
-
-### CI2: one approval per deploy
-
-**Goal:** a merge to `main` asks the owner to approve the Deploy run once, not once for `worker` and again for `web`.
-
-**Where:** `.github/workflows/deploy.yml`. Both `worker` and `web` declare `environment: production`, and GitHub asks for a review per job that uses a protected environment.
-
-**Approach (agreed with the owner in chat):** merge `worker` and `web` into one `deploy` job with `environment: production`. Its steps run in order: the endpoint-variable check, checkout, one `npm ci`, D1 migrations, `wrangler deploy`, the web export, then `wrangler pages deploy`. This keeps the order (Worker before web), installs once instead of twice, and keeps one approval gate. Keep the `check` job, the concurrency group and the `workflow_run` head SHA. Update `docs/deploy.md` wherever it describes two approvals or two jobs.
-
-**Definition of done:** `actionlint` (or `npx -y @action-validator/cli`) on the workflow, if it can run in the sandbox; the next merge shows one review request (the owner confirms); `npm run live-check` passes after that deploy.
-
-### Both
-
-- [ ] `npm run verify` green; e2e green; review run and answered.
-- [ ] This file rewritten: next is S3 (the section below), unless the owner picked another filler.
-
-**Not this step:** store builds (🛑 B), universal links, F3.
-
-## After K1 + CI2: S3, store screenshots from production
-
-**Before you start:** PR #6 (W2) should be merged and its Deploy run approved; then `npm run live-check` passes all checks including `home-screen install files`. If PR #6 is still open, branch from `claude/pensive-gates-shvsah` (W2) and say so in your PR; do not add S3 to PR #6. If the owner has picked a different filler (a PR comment or a note in this file), do that instead: the other offers are the `/stats` key-prefix filter (deferred finding F2-6) and F3 (needs the owner's channels decision first).
+**Before you start:** PR #8 (K1 + CI2) should be merged and its Deploy run approved; then `npm run live-check` passes all checks including `home-screen install files`. If PR #8 is still open, branch from `claude/words-waffles-continue-j9f2iu` and say so in your PR; do not add S3 to PR #8. Check PR #8's comments for the owner's phone test of K1 (and whether the merge asked for one approval). If the owner has picked a different filler (a PR comment or a note in this file), do that instead: the other offers are the `/stats` key-prefix filter (deferred finding F2-6) and F3 (needs the owner's channels decision first).
 
 **Goal:** the owner has the five store screenshots from `docs/store-listing.md` "Screenshots" (Play mid-game, a win with toppings, History, Stats, dark mode) at each required size, taken from the live site, ready to upload during 🛑 B.
 
@@ -123,7 +92,7 @@ Owner asked for both on 2026-11-14. Do them in one branch and PR, then go on to 
 
 **Goal:** Words & Waffles is in App Store Connect and Google Play (TestFlight / internal testing at least), built by EAS from `main`, with share links pointing at the live site.
 
-**Before you start:** merge the open W2/S3 PRs, approve the Deploy run on the `production` environment, then run `npm run live-check` at the repo root. Every check should pass. On your phone, try the web install too: open the site, Share → Add to Home Screen (iOS) or ⋮ → Install app (Android).
+**Before you start:** merge the open S3 PR, approve the Deploy run on the `production` environment, then run `npm run live-check` at the repo root. Every check should pass. On your phone, try the web install too: open the site, Share → Add to Home Screen (iOS) or ⋮ → Install app (Android).
 
 **What the owner does** (no agent can: it needs your accounts):
 

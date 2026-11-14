@@ -4,6 +4,7 @@ import { type LayoutChangeEvent, Platform, Pressable, StyleSheet, Text, View } f
 import type { Mark } from '../../game/score';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { webKeyboardClearance } from '../fit';
 import { useTheme } from '../theme';
 
 /** Marks our keys so the hardware-keyboard hook can tell them from other buttons. */
@@ -11,14 +12,6 @@ export const KEY_TEST_ID_PREFIX = 'key-';
 
 // Prototype lines 339-340: '+' is Enter, '-' is delete.
 const ROWS = ['qwertyuiop', 'asdfghjkl', '+zxcvbnm-'];
-/**
- * Web only (K1): the space under the bottom key row, on top of the safe-area inset App already
- * leaves, so a fast tap on Enter or Delete does not land on the browser's own bottom bar
- * (Safari's tab bar, Android's gesture area). In the installed app the home-indicator inset
- * (viewport-fit=cover) usually covers it already, so only the shortfall is added.
- */
-export const WEB_BOTTOM_CLEARANCE = 20;
-
 const MARKED = {
   hit: { fg: '#fff' },
   near: { fg: '#35200a' },
@@ -35,7 +28,7 @@ interface Props {
 function KeyboardView({ marks, keyHeight, onKey, onLayout }: Props) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const extra = Platform.OS === 'web' ? Math.max(0, WEB_BOTTOM_CLEARANCE - insets.bottom) : 0;
+  const extra = Platform.OS === 'web' ? webKeyboardClearance(insets.bottom) : 0;
   return (
     <View
       accessibilityLabel="Keyboard"

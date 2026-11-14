@@ -75,7 +75,7 @@ export default function App() {
       <StatusBar style={t.scheme === 'dark' ? 'light' : 'dark'} />
       <View style={[{ flex: 1 }, webRoot]}>
         <Table>
-          <SafeAreaView style={{ flex: 1, gap: 8 }} edges={['top', 'bottom']}>
+          <SafeAreaView style={{ flex: 1, gap: 8 }} edges={['top', 'bottom', 'left', 'right']}>
             <Header tab={tab} onTab={go} />
             {tab === 'play' && (
               <PlayScreen

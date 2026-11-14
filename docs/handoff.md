@@ -43,7 +43,8 @@ Rules: logic in pure, node-tested modules; no new dependency without a reason in
 | S2 | Live checks of "Done means", README link and screenshot, repo settings | done (session 2, PR #3) |
 | F1 | Share a word by link | done (session 3, PR #4) |
 | F2 | Stats page v2: the app's look, year heatmap, tries chart from a second anonymous event | done (session 4, PR #5, ahead of 🛑 B) |
-| 🛑 B | Owner: store accounts, EAS build and submit | **next** |
+| W2 | Home-screen install on the web: manifest, apple-touch-icon, icons | **next** (owner's pick, 2026-11-14, while 🛑 B waits) |
+| 🛑 B | Owner: store accounts, EAS build and submit | open: owner, whenever they are at their Mac; does not block W2 |
 | F3 | Channels: a group code with a stored daily word (needs an owner decision first) | |
 
 ## Production
@@ -57,7 +58,43 @@ Live since 2026-11-13, on the default domains:
 
 Checks at the end of F2: 176 app unit tests, 45 Worker tests on real D1, 29 Playwright tests, web bundle 242.1 KB of the 500 KB budget locally. From F2 the live check also dry-runs the end-of-game result (`POST /v1/result`), so it needs the F2 Worker deployed before it passes.
 
-## Next step: 🛑 B, the owner builds and submits the phone apps
+## Next step: W2, home-screen install on the web
+
+The owner is away from their Mac, so 🛑 B (below) cannot happen yet. They chose this small web-only step in the meantime (2026-11-14). **Start a new branch from `main` once PR #5 is merged** (`feature/w2`); if PR #5 is still open, branch from `feature/f2` and say so in the PR. Do not add W2 to PR #5.
+
+**Goal:** on a phone, "Add to Home Screen" (iOS Safari) or "Install app" (Android Chrome) gives Words & Waffles a proper icon, name and splash colours, and the site opens standalone with no browser bar, offline as it does today.
+
+**Requirements:** none in plan 001 beyond the "small filler" note; the shape below is the spec. Brand colours come from `app/app.json` (`web.themeColor` / `backgroundColor` `#e6edf8`, dark splash `#171b30`) and `app/src/ui/theme.ts`.
+
+**What session 4 already found (so it is not re-derived):**
+
+- `expo export -p web` (SDK 58, single-page output) builds `index.html` from `app/public/index.html` **if that file exists**, else from Expo's default template (`node_modules/@expo/cli/build/src/start/server/webTemplate.js`, `getTemplateIndexHtmlAsync`). It replaces `%LANG_ISO_CODE%` and `%WEB_TITLE%`, appends the scripts, and adds `theme-color` from `app.json`. So the head tags go in a new `app/public/index.html`: copy the current output head (`app/dist/index.html` after `npm run export:web -w app`, including the react-native-web reset `<style id="expo-reset">`, the `<noscript>` and `<div id="root">`), then add the manifest link and the Apple tags.
+- Everything in `app/public/` is copied to the root of `app/dist`, which Cloudflare Pages serves (Deploy workflow, `wrangler pages deploy ../app/dist`).
+- The only icon source is `app/assets/icon.png` (1024x1024 RGB, no transparency); `favicon.png` is 48x48. Android adaptive layers are `app/assets/android-icon-*.png`.
+- `app/public/sw.js` caches static files by the `STATIC` regex (`.png` matches; `.webmanifest` does not). Read `docs/solutions/integration-issues/service-worker-on-cloudflare-pages.md` before touching it.
+
+**Units and delegation** (one `implementer`, serial; small enough for one brief):
+
+1. Icons in `app/public/icons/`: `icon-192.png`, `icon-512.png`, `maskable-512.png` (the art inside the central 80% safe zone on the `#e6edf8` table colour), `apple-touch-icon.png` 180x180 (opaque; iOS rounds the corners). Generate them once from `app/assets/icon.png` with a committed script (`scripts/web-icons.mjs`, using Playwright's Chromium canvas or `sharp` if already in the tree; no new dependency without a PR sentence), and commit the PNGs.
+2. `app/public/manifest.webmanifest`: `name` "Words & Waffles", `short_name` "Waffles" (or the full name if it fits under the icon; check on the screenshot), `start_url` "/", `scope` "/", `display` "standalone", `background_color` and `theme_color` `#e6edf8`, the three icons with `purpose` `any` / `maskable`. No `id` field that identifies anything, no external URLs.
+3. `app/public/index.html` as above, plus `<link rel="manifest" href="/manifest.webmanifest">`, `<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">`, `<meta name="apple-mobile-web-app-title" content="Words & Waffles">`, `<meta name="apple-mobile-web-app-capable" content="yes">`, `<meta name="mobile-web-app-capable" content="yes">`, `<meta name="apple-mobile-web-app-status-bar-style" content="default">`, and `theme-color` for both schemes (`media="(prefers-color-scheme: dark)"` with `#171b30`).
+4. `sw.js`: precache `/manifest.webmanifest` and the icons at install, extend `STATIC` to `.webmanifest`, bump `VERSION`. Keep every guard in the solutions doc.
+5. Tests: an e2e check (`app/e2e/`) that `/manifest.webmanifest` serves valid JSON with the fields above, that every icon it lists loads as `image/png` at its stated size, that `index.html` has the manifest and apple-touch-icon links, and that the offline spec still passes. Chromium can also report installability (`page.evaluate` on the manifest, or the "Application" checks via CDP `Page.getAppManifest`); use it if it is cheap.
+
+**Decide in this step:** `short_name` (evidence: a 390px screenshot of the label width is not available in a browser, so pick the shortest that still reads as the game; "Waffles" is the default); whether `display_override` / `orientation: portrait` are worth adding (the app is portrait-only in `app.json`; default: add `orientation: "portrait"`).
+
+**Definition of done:**
+
+- [ ] `app/dist/` after `npm run export:web -w app` has `manifest.webmanifest`, `icons/*.png`, and an `index.html` with the new head tags and still exactly one bundle script.
+- [ ] e2e manifest/icon checks pass; `offline.spec.ts` still passes; bundle budget unchanged (icons are not in the JS bundle, but the size script counts html+js+css only; confirm).
+- [ ] PR body has screenshots of the icons, and says how the owner tests it: open the site on the phone, Share → Add to Home Screen (iOS) or ⋮ → Install app (Android), launch it, airplane mode, launch again.
+- [ ] `npm run verify` green; e2e green; review run and answered.
+- [ ] After merge and deploy, `npm run live-check` still passes (no change expected).
+- [ ] This file rewritten: if 🛑 B is still open, the next step is the next filler the owner picks (offer: store screenshots from production at the `docs/store-listing.md` sizes, a key-prefix filter for `/stats`, or F3 once its decision is made); otherwise the step after 🛑 B.
+
+**Not this step:** store builds (🛑 B), universal links (after 🛑 B), the `/stats` key-prefix filter (F2 review finding 6), F3.
+
+## Pending owner stop: 🛑 B, the owner builds and submits the phone apps
 
 **Goal:** Words & Waffles is in App Store Connect and Google Play (TestFlight / internal testing at least), built by EAS from `main`, with share links pointing at the live site.
 
@@ -78,7 +115,7 @@ Optional: once the Expo project exists and the repo is connected to it in the Ex
 
 **Questions this stop answers:** the bundle id; whether links should open the installed app (universal links / app links); the open questions below.
 
-**If a session starts while 🛑 B is still open** and finds no owner comment saying otherwise, it does a filler unit instead of waiting: a web app manifest and `apple-touch-icon` (small, web only), or a key-prefix filter for `/stats` (review finding 6 of F2). F3 still waits for an owner decision.
+**After 🛑 B:** universal links if the owner wants them (needs `apple-app-site-association` and `assetlinks.json` on Pages plus associated domains in `app/app.json`), then whatever the owner picks from the open questions.
 
 **Not this step:** universal links (after 🛑 B, owner's call), channels with a stored word (F3, needs a decision).
 

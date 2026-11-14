@@ -14,11 +14,11 @@ Guess the five-letter word of the day in six tries; each guess shows which lette
 
 ## Privacy, in plain words
 
-- **Counted:** at most once a day the app tells our server "someone opened the game today" plus four yes/no flags (first open this week, this month, ever) and the platform. No ID of any kind. The server adds one to a few counters and stores nothing else.
+- **Counted:** at most once a day the app tells our server "someone opened the game today" plus four yes/no flags (first open this week, this month, ever) and the platform. When you finish the daily word it also sends the date and how many tries it took (or that it got away). No ID of any kind. The server adds one to a few counters and stores nothing else.
 - **Never collected:** names, accounts, device IDs, IP addresses, user agents, cookies, locations, or your games. There are no analytics, ad or crash-reporting SDKs.
 - **Your games** stay on your device. Back up exports a file you keep wherever you like.
 - **Public numbers:** every count is on the word server's public [stats page](https://words-and-waffles.mjohnson139.workers.dev/stats).
-- You can turn the ping off in the Stats tab. Full details: [PRIVACY.md](PRIVACY.md).
+- You can turn both off with one switch in the Stats tab. Full details: [PRIVACY.md](PRIVACY.md).
 
 ## Run it locally
 
@@ -32,7 +32,7 @@ npm run verify
 
 ## Self-host the word server
 
-The Worker in [`worker/`](worker/) serves the word of the day, takes the count ping and renders `/stats`. With a Cloudflare account:
+The Worker in [`worker/`](worker/) serves the word of the day, takes the count ping and the end-of-game result and renders `/stats`. With a Cloudflare account:
 
 ```bash
 cd worker

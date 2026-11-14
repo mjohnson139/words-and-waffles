@@ -20,7 +20,7 @@ The current architecture map and the invariants that are easy to break. Read the
 - **Stats are derived, never stored.** Only game records persist. A backup is the records and nothing else.
 - **Merging games** keeps the record with the higher `rank()` per id (finished beats playing, more guesses beat fewer). Restore and any future sync use the same rule.
 - **A daily game that has guesses keeps its answer**, even if the word endpoint later returns a different word for that date.
-- **Nothing identifies a player.** The ping body has five fields and no ID; the Worker stores counters only and never logs requests. The rate limiter's IP map lives in isolate memory only.
+- **Nothing identifies a player.** The ping body has five fields and no ID; the result body (`/v1/result`, F2) has two, the daily date and the tries, and its counter key has no platform; the Worker stores counters only and never logs requests. The rate limiter's IP map lives in isolate memory only.
 - **The word hashing is obfuscation**, not security. Never describe it otherwise.
 - **Expo Go compatible:** only Expo SDK modules, no custom native code.
 - **Animations** use the native driver on iOS/Android and the JS driver on web; reduced motion skips them entirely, as the prototype's `calm` does.
@@ -33,6 +33,7 @@ The current architecture map and the invariants that are easy to break. Read the
 2. `useDailyWord(date, endpoint)` waits for settings, then `loadDailyWord`: a cached `{endpoint, payload}` for this date and this endpoint is final (no request, so offline cold start works); otherwise one fetch with a timeout; otherwise the bundled `dailyWord(date)` with `source: 'bundled'`. If a configured endpoint failed, `useDailyWord` retries on foreground or `online` (at most once per 60 s, never once today's game has guesses; `shouldRetry`).
 3. The answer reaches Play tagged with its date. Play only builds a new daily game from an answer whose date is today, so after midnight it waits for the new day's word instead of reusing yesterday's. A saved daily game always keeps its own answer.
 4. The ping (`usePingOnOpen`) also waits for settings, so an opted-out player never sends one, and runs again when the date changes; `maybePing` dedupes per local day from stored state.
+5. When today's daily game ends, `useResultOnFinish` sends `{d, g}` to the ping endpoint's sibling `/v1/result` (`resultEndpoint`), under the same switch, at most once per date (`ww:result`).
 
 ## Share links (F1)
 

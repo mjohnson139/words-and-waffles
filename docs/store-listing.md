@@ -25,7 +25,7 @@ word game,daily puzzle,word puzzle,five letters,guess,vocabulary,brain,cozy,offl
 
 - **App Store privacy label:** Data Not Collected
 - **Google Play Data safety:** "No data collected", "No data shared"
-- **Why the daily count ping qualifies:** it sends no identifiers, is not linked to a user, and records counts only (see `PRIVACY.md`), so it is read as collecting no data.
+- **Why the daily count ping and the end-of-game result qualify:** neither sends an identifier, neither is linked to a user, and the server only adds one to aggregate counters (see `PRIVACY.md`), so they are read as collecting no data. The result (date and number of tries) is gameplay data in Apple's terms only if linked or used for tracking; it is neither.
 - **Owner to confirm:** check this reading against the current Apple and Google definitions before submitting.
 
 ## URLs

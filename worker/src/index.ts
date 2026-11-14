@@ -1,5 +1,6 @@
 import { errorResponse } from './http';
 import { handlePing } from './ping';
+import { handleResult } from './result';
 import { handleStats, handleStatsJson } from './stats';
 import { handleWord } from './word';
 
@@ -27,6 +28,8 @@ async function route(request: Request, env: Cloudflare.Env): Promise<Response> {
       return allow('GET', () => handleWord(request, env));
     case '/v1/ping':
       return allow('POST', () => handlePing(request, env));
+    case '/v1/result':
+      return allow('POST', () => handleResult(request, env));
     case '/stats':
       return allow('GET', () => handleStats(env));
     case '/stats.json':

@@ -180,7 +180,26 @@ describe('stats', () => {
     expect(s.months).toHaveLength(12);
     expect(s.days[0]).toMatchObject({ total: 2, ios: 1, android: 1, web: 0 });
     expect(s.current.day.total).toBe(2);
-    expect(await (await call('/stats')).text()).toContain(s.days[0].label);
+    const html = await (await call('/stats')).text();
+    expect(html).toContain(': 2 players"');
+  });
+
+  it('shows today\'s tries distribution and matches the JSON', async () => {
+    const day = new Date().toISOString().slice(0, 10);
+    await env.DB.batch(
+      [['3', 4], ['4', 2], ['x', 1]].map(([g, n]) =>
+        env.DB.prepare('INSERT INTO counts (key, n) VALUES (?, ?)').bind(`tries:${day}:${g}`, n),
+      ),
+    );
+    const s = (await (await call('/stats.json')).json()) as {
+      tries: { counts: Record<string, number>; played: number; won: number; winRate: number };
+      year: { n: number }[][];
+    };
+    expect(s.tries).toMatchObject({ played: 7, won: 6, winRate: 86 });
+    expect(s.tries.counts).toMatchObject({ '3': 4, '4': 2, x: 1, '1': 0 });
+    expect(s.year).toHaveLength(53);
+    const html = await (await call('/stats')).text();
+    expect(html).toContain('7 finished &middot; 86% won');
   });
 });
 

@@ -7,6 +7,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useDailyWord } from './src/api/dailyWord';
 import { isShareFragment } from './src/game/shareLink';
 import { usePingOnOpen } from './src/api/ping';
+import { useResultOnFinish } from './src/api/result';
 import { PING_ENDPOINT, WORD_ENDPOINT } from './src/config';
 import { useGames } from './src/store/games';
 import { useSettings } from './src/store/settings';
@@ -39,6 +40,7 @@ export default function App() {
   const hasGuesses = (games['d-' + date]?.guesses.length ?? 0) > 0;
   const daily = useDailyWord(date, settingsReady ? endpoint : '', hasGuesses);
   usePingOnOpen(PING_ENDPOINT, settings.pingEnabled, settingsReady, date);
+  useResultOnFinish(PING_ENDPOINT, settings.pingEnabled, settingsReady && ready, date, games['d-' + date]);
 
   // Web: a '#w=' share link (F1). Play opens it once the games are loaded.
   const [link, setLink] = useState(() =>

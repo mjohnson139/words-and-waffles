@@ -4,6 +4,7 @@ Cloudflare Worker for Words & Waffles. It serves:
 
 - `GET /v1/word?date=YYYY-MM-DD`: the day's word as salted letter hashes (obfuscation, not secrecy).
 - `POST /v1/ping`: anonymous counters in D1. No identifier, IP or user agent is stored.
+- `POST /v1/result`: `{d, g}` when a daily game ends; adds one to `tries:<d>:<g>`. Same rate limit, same `X-Dry-Run: 1`.
 - `GET /stats` and `GET /stats.json`: the public counts and the honest limits.
 
 ## Local dev

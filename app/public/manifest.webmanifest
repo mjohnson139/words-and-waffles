@@ -1,0 +1,16 @@
+{
+  "name": "Words & Waffles",
+  "short_name": "Waffles",
+  "description": "A cosy daily word game. One word a day, no accounts, no trackers.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e6edf8",
+  "theme_color": "#e6edf8",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

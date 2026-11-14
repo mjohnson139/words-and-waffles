@@ -3,6 +3,7 @@
 //
 // Maintainer tool, not a repo dependency: it needs Playwright with Chromium available.
 //   NODE_PATH=$(npm root -g) node scripts/make-icons.mjs      (global install)
+//   add --web to write only app/public/icons/ (web install icons)
 //   npx -y -p playwright@1.63.0 node scripts/make-icons.mjs   (or via npx)
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -11,7 +12,9 @@ import path from 'node:path';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
-const OUT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app', 'assets');
+const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app');
+const ASSETS = path.join(APP, 'assets');
+const WEB = path.join(APP, 'public', 'icons');
 const TABLE = '#e6edf8';
 
 const LOGO = `
@@ -38,6 +41,7 @@ function page(size, logoPx, inner, bg) {
 <svg width="${logoPx}" height="${logoPx}" viewBox="0 0 40 40">${inner}</svg></body></html>`;
 }
 
+// [file, size, html, transparent, outDir]; outDir defaults to app/assets.
 const jobs = [
   ['icon.png', 1024, page(1024, 760, LOGO, GINGHAM), false],
   ['android-icon-foreground.png', 1024, page(1024, 676, LOGO, ''), true],
@@ -45,14 +49,22 @@ const jobs = [
   ['android-icon-monochrome.png', 1024, page(1024, 676, MONO, ''), true],
   ['splash-icon.png', 512, page(512, 512, LOGO, ''), true],
   ['favicon.png', 48, page(48, 44, LOGO, ''), true],
+  // Web install icons (opaque). Maskable keeps the logo inside the central 80% safe zone.
+  ['icon-192.png', 192, page(192, 142, LOGO, GINGHAM), false, WEB],
+  ['icon-512.png', 512, page(512, 379, LOGO, GINGHAM), false, WEB],
+  ['maskable-512.png', 512, page(512, 300, LOGO, GINGHAM), false, WEB],
+  ['apple-touch-icon.png', 180, page(180, 133, LOGO, GINGHAM), false, WEB],
 ];
+// `--web` writes only the web icons, leaving app/assets untouched.
+const webOnly = process.argv.includes('--web');
 
 const browser = await chromium.launch();
 try {
-  for (const [name, size, html, transparent] of jobs) {
+  for (const [name, size, html, transparent, dir = ASSETS] of jobs) {
+    if (webOnly && dir !== WEB) continue;
     const pg = await browser.newPage({ viewport: { width: size, height: size }, deviceScaleFactor: 1 });
     await pg.setContent(html);
-    await pg.screenshot({ path: path.join(OUT, name), omitBackground: transparent });
+    await pg.screenshot({ path: path.join(dir, name), omitBackground: transparent });
     await pg.close();
     console.log('wrote', name);
   }

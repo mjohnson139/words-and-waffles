@@ -8,6 +8,8 @@
  *    happens before this worker controls the page, so those requests would
  *    otherwise never be cached and the very first offline visit would lack them.
  *    Asset precaching is best effort: a miss is cached on the next controlled load.
+ *  - The install files (manifest and home-screen icons) are precached the same
+ *    way, best effort. They are not under MANAGED, so pruning leaves them.
  *  - Only real files are cached: responses must be ok and not redirected, and
  *    non-navigation responses must not be HTML (Cloudflare Pages answers unknown
  *    paths with index.html and status 200, which must never sit under an asset URL).
@@ -20,15 +22,24 @@
  *      navigations: network first (3 s timeout), fall back to the cached '/'.
  *        If the timeout wins, the fetch carries on and its result is cached
  *        when it arrives (kept alive with event.waitUntil).
- *      static assets (/_expo/static, fonts, images, favicon): cache first, else
+ *      static assets (/_expo/static, fonts, images, favicon, manifest): cache first, else
  *      network and store.
  * Bump VERSION to drop old caches.
  */
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = `waffles-${VERSION}`;
 const NAV_TIMEOUT_MS = 3000;
-const STATIC = /^\/(_expo\/static\/|assets\/|favicon\.ico)|\.(?:js|css|png|jpe?g|svg|webp|ico|ttf|otf|woff2?)$/;
+const STATIC = /^\/(_expo\/static\/|assets\/|favicon\.ico)|\.(?:webmanifest|js|css|png|jpe?g|svg|webp|ico|ttf|otf|woff2?)$/;
 const MANAGED = /^\/(_expo\/static|assets)\//;
+// Home-screen install files (W2); not under MANAGED, so they are never pruned.
+// They are cache-first and only fetched when missing: bump VERSION whenever one changes.
+const INSTALL_FILES = [
+  '/manifest.webmanifest',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/maskable-512.png',
+  '/icons/apple-touch-icon.png',
+];
 const ASSET_REF = /\/assets\/[^"'\s\\)]+\.(?:ttf|otf|woff2?|png|jpe?g|svg|webp)/g;
 
 function cacheable(res, isNavigation) {
@@ -83,6 +94,12 @@ async function store(cache, res) {
   } catch {
     // Assets get cached on the next controlled load.
   }
+  // Best effort: a miss is cached on first use (STATIC) and never fails install.
+  await Promise.all(
+    INSTALL_FILES.map(async (path) => {
+      if (!(await cache.match(path))) await fetchAndCache(cache, path);
+    }),
+  );
 }
 
 self.addEventListener('install', (event) => {

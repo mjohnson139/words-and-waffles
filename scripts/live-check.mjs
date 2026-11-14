@@ -135,6 +135,23 @@ async function workerChecks() {
   });
 }
 
+async function installCheck() {
+  await check('home-screen install files', null, async () => {
+    const r = await fetch(SITE + '/manifest.webmanifest');
+    assert(r.status === 200, `manifest status ${r.status}`);
+    const type = r.headers.get('content-type') || '';
+    assert(/manifest\+json|application\/json/.test(type), `manifest content-type ${type}`);
+    const m = await r.json();
+    for (const icon of m.icons) {
+      const i = await fetch(SITE + icon.src);
+      assert(i.status === 200 && (i.headers.get('content-type') || '').startsWith('image/png'), `${icon.src}: ${i.status} ${i.headers.get('content-type')}`);
+    }
+    const html = await (await fetch(SITE + '/')).text();
+    assert(html.includes('rel="manifest"') && html.includes('rel="apple-touch-icon"'), 'install links missing from /');
+    return `manifest (${type.split(';')[0]}) and ${m.icons.length} icons`;
+  });
+}
+
 async function bundleCheck() {
   await check('bundle budget', 'bundle', async () => {
     // Same measure as scripts/bundle-size.mjs on the local export: gzip of the html, js and css.
@@ -293,6 +310,7 @@ async function endpointSwap(browser) {
 
 await workerChecks();
 await bundleCheck();
+await installCheck();
 let browser;
 try {
   browser = await chromium.launch();

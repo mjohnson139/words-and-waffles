@@ -43,7 +43,8 @@ Rules: logic in pure, node-tested modules; no new dependency without a reason in
 | S2 | Live checks of "Done means", README link and screenshot, repo settings | done (session 2, PR #3) |
 | F1 | Share a word by link | done (session 3, PR #4) |
 | F2 | Stats page v2: the app's look, year heatmap, tries chart from a second anonymous event | done (session 4, PR #5, ahead of 🛑 B) |
-| W2 | Home-screen install on the web: manifest, apple-touch-icon, icons | **next** (owner's pick, 2026-11-14, while 🛑 B waits) |
+| W2 | Home-screen install on the web: manifest, apple-touch-icon, icons | done (session 5, PR #6; live once deployed) |
+| S3 | Store screenshots from production at the `docs/store-listing.md` sizes | **next** (default filler while 🛑 B waits; owner may pick another) |
 | 🛑 B | Owner: store accounts, EAS build and submit | open: owner, whenever they are at their Mac; does not block W2 |
 | F3 | Channels: a group code with a stored daily word (needs an owner decision first) | |
 
@@ -56,49 +57,40 @@ Live since 2026-11-13, on the default domains:
 - Deploy: merging to `main` runs CI, then the Deploy workflow, whose `worker` and `web` jobs wait for the owner's approval on the `production` environment. Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` and variables `WORD_ENDPOINT` and `PING_ENDPOINT` are set in the repo.
 - `npm run live-check` (`scripts/live-check.mjs`) proves the five "Done means" items against production in about a minute. Its ping goes to production with `X-Dry-Run: 1`, which the Worker validates but never counts, and its last check proves `/stats` did not move. Run it after any deploy.
 
-Checks at the end of F2: 176 app unit tests, 45 Worker tests on real D1, 29 Playwright tests, web bundle 242.1 KB of the 500 KB budget locally. From F2 the live check also dry-runs the end-of-game result (`POST /v1/result`), so it needs the F2 Worker deployed before it passes.
+Checks at the end of W2: 176 app unit tests, 45 Worker tests on real D1, 33 Playwright tests, web bundle 242.5 KB of the 500 KB budget locally. From W2 the live check also fetches `/manifest.webmanifest` and its icons (`home-screen install files`); it fails until the W2 web build is deployed, because Pages answers unknown paths with `index.html`.
 
-## Next step: W2, home-screen install on the web
+## Next step: S3, store screenshots from production
 
-The owner is away from their Mac, so 🛑 B (below) cannot happen yet. They chose this small web-only step in the meantime (2026-11-14). **Start a new branch from `main` once PR #5 is merged** (`feature/w2`); if PR #5 is still open, branch from `feature/f2` and say so in the PR. Do not add W2 to PR #5.
+**Before you start:** PR #6 (W2) should be merged and its Deploy run approved; then `npm run live-check` passes all checks including `home-screen install files`. If PR #6 is still open, branch from `claude/pensive-gates-shvsah` (W2) and say so in your PR; do not add S3 to PR #6. If the owner has picked a different filler (a PR comment or a note in this file), do that instead: the other offers are the `/stats` key-prefix filter (deferred finding F2-6) and F3 (needs the owner's channels decision first).
 
-**Goal:** on a phone, "Add to Home Screen" (iOS Safari) or "Install app" (Android Chrome) gives Words & Waffles a proper icon, name and splash colours, and the site opens standalone with no browser bar, offline as it does today.
+**Goal:** the owner has the five store screenshots from `docs/store-listing.md` "Screenshots" (Play mid-game, a win with toppings, History, Stats, dark mode) at each required size, taken from the live site, ready to upload during 🛑 B.
 
-**Requirements:** none in plan 001 beyond the "small filler" note; the shape below is the spec. Brand colours come from `app/app.json` (`web.themeColor` / `backgroundColor` `#e6edf8`, dark splash `#171b30`) and `app/src/ui/theme.ts`.
+**Requirements:** `docs/store-listing.md` "Screenshots"; 🛑 B item 6 below. Look up the current pixel sizes before capturing (App Store Connect: iPhone 6.9-inch, e.g. 1320x2868 or 1290x2796, and 6.5-inch 1242x2688 / 1284x2778; Google Play phone: 16:9 or 9:16, 320-3840 px per side) and record the ones used in `docs/store-listing.md`.
 
-**What session 4 already found (so it is not re-derived):**
+**Units and delegation** (one `implementer`, serial):
 
-- `expo export -p web` (SDK 58, single-page output) builds `index.html` from `app/public/index.html` **if that file exists**, else from Expo's default template (`node_modules/@expo/cli/build/src/start/server/webTemplate.js`, `getTemplateIndexHtmlAsync`). It replaces `%LANG_ISO_CODE%` and `%WEB_TITLE%`, appends the scripts, and adds `theme-color` from `app.json`. So the head tags go in a new `app/public/index.html`: copy the current output head (`app/dist/index.html` after `npm run export:web -w app`, including the react-native-web reset `<style id="expo-reset">`, the `<noscript>` and `<div id="root">`), then add the manifest link and the Apple tags.
-- Everything in `app/public/` is copied to the root of `app/dist`, which Cloudflare Pages serves (Deploy workflow, `wrangler pages deploy ../app/dist`).
-- The only icon source is `app/assets/icon.png` (1024x1024 RGB, no transparency); `favicon.png` is 48x48. Android adaptive layers are `app/assets/android-icon-*.png`.
-- `app/public/sw.js` caches static files by the `STATIC` regex (`.png` matches; `.webmanifest` does not). Read `docs/solutions/integration-issues/service-worker-on-cloudflare-pages.md` before touching it.
+1. `scripts/store-shots.mjs`, a variant of `scripts/live-check.mjs` (reuse its `quietContext`, `openApp`, `guess` shape and its `ALLOWED` host audit): for each size, a Playwright context with viewport = size / deviceScaleFactor (e.g. 430x932 at 3 for 1290x2796), the daily word from production (the live check already reads it), a mid-game board, a win, History, Stats, and the dark colour scheme (`colorScheme: 'dark'`). Pings off in the app (the Settings switch) so the run counts nothing; the last live-check step ("stats not inflated") shows how to prove that. Files to `docs/store-listing/screenshots/<store>-<size>/<n>-<name>.png`, opaque PNG, exact pixel size checked after capture.
+2. Commit the PNGs (check their total size; if over ~5 MB, put them in the PR as an artifact link instead and say so) and a short "how to refresh" line in `docs/store-listing.md`.
 
-**Units and delegation** (one `implementer`, serial; small enough for one brief):
-
-1. Icons in `app/public/icons/`: `icon-192.png`, `icon-512.png`, `maskable-512.png` (the art inside the central 80% safe zone on the `#e6edf8` table colour), `apple-touch-icon.png` 180x180 (opaque; iOS rounds the corners). Generate them once from `app/assets/icon.png` with a committed script (`scripts/web-icons.mjs`, using Playwright's Chromium canvas or `sharp` if already in the tree; no new dependency without a PR sentence), and commit the PNGs.
-2. `app/public/manifest.webmanifest`: `name` "Words & Waffles", `short_name` "Waffles" (or the full name if it fits under the icon; check on the screenshot), `start_url` "/", `scope` "/", `display` "standalone", `background_color` and `theme_color` `#e6edf8`, the three icons with `purpose` `any` / `maskable`. No `id` field that identifies anything, no external URLs.
-3. `app/public/index.html` as above, plus `<link rel="manifest" href="/manifest.webmanifest">`, `<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">`, `<meta name="apple-mobile-web-app-title" content="Words & Waffles">`, `<meta name="apple-mobile-web-app-capable" content="yes">`, `<meta name="mobile-web-app-capable" content="yes">`, `<meta name="apple-mobile-web-app-status-bar-style" content="default">`, and `theme-color` for both schemes (`media="(prefers-color-scheme: dark)"` with `#171b30`).
-4. `sw.js`: precache `/manifest.webmanifest` and the icons at install, extend `STATIC` to `.webmanifest`, bump `VERSION`. Keep every guard in the solutions doc.
-5. Tests: an e2e check (`app/e2e/`) that `/manifest.webmanifest` serves valid JSON with the fields above, that every icon it lists loads as `image/png` at its stated size, that `index.html` has the manifest and apple-touch-icon links, and that the offline spec still passes. Chromium can also report installability (`page.evaluate` on the manifest, or the "Application" checks via CDP `Page.getAppManifest`); use it if it is cheap.
-
-**Decide in this step:** `short_name` (evidence: a 390px screenshot of the label width is not available in a browser, so pick the shortest that still reads as the game; "Waffles" is the default); whether `display_override` / `orientation: portrait` are worth adding (the app is portrait-only in `app.json`; default: add `orientation: "portrait"`).
+**Decide in this step:** whether the board shows a real daily word (spoils that day's puzzle in a public repo; default: use a shared-word link `#w=...` built with `src/game/shareLink.ts` for a fixed non-daily word instead, so no daily answer is published); whether to hide the status-bar area (default: no web chrome exists in a Playwright screenshot, so nothing to hide).
 
 **Definition of done:**
 
-- [ ] `app/dist/` after `npm run export:web -w app` has `manifest.webmanifest`, `icons/*.png`, and an `index.html` with the new head tags and still exactly one bundle script.
-- [ ] e2e manifest/icon checks pass; `offline.spec.ts` still passes; bundle budget unchanged (icons are not in the JS bundle, but the size script counts html+js+css only; confirm).
-- [ ] PR body has screenshots of the icons, and says how the owner tests it: open the site on the phone, Share → Add to Home Screen (iOS) or ⋮ → Install app (Android), launch it, airplane mode, launch again.
+- [ ] All five shots at every size, exact pixels, light and dark as listed.
+- [ ] No daily answer visible in a committed image; `/stats` unchanged by the run.
+- [ ] PR body shows one size's set inline.
 - [ ] `npm run verify` green; e2e green; review run and answered.
-- [ ] After merge and deploy, `npm run live-check` still passes (no change expected).
-- [ ] This file rewritten: if 🛑 B is still open, the next step is the next filler the owner picks (offer: store screenshots from production at the `docs/store-listing.md` sizes, a key-prefix filter for `/stats`, or F3 once its decision is made); otherwise the step after 🛑 B.
+- [ ] This file rewritten: next is 🛑 B if still open (with the screenshots path added to its item 6), else the step after 🛑 B.
 
-**Not this step:** store builds (🛑 B), universal links (after 🛑 B), the `/stats` key-prefix filter (F2 review finding 6), F3.
+**Not this step:** store builds and submission (🛑 B), universal links (after 🛑 B), the `/stats` key-prefix filter (F2-6), F3.
+
+**What already exists:** `scripts/live-check.mjs` (production driver, host audit, dry-run pings), `app/e2e/smoke.spec.ts` "review screenshots" (light and dark capture locally), `app/e2e/fixtures.ts` (`guess`, `wrongWord`), `app/src/game/shareLink.ts`, `docs/store-listing.md`, W2's icons in `app/public/icons/` and preview `docs/screenshots/w2-icons.png`.
 
 ## Pending owner stop: 🛑 B, the owner builds and submits the phone apps
 
 **Goal:** Words & Waffles is in App Store Connect and Google Play (TestFlight / internal testing at least), built by EAS from `main`, with share links pointing at the live site.
 
-**Before you start:** merge PR #5 (F2), approve the Deploy run on the `production` environment, then run `npm run live-check` at the repo root. Every check should pass, including the new result dry run. Open `https://words-and-waffles.mjohnson139.workers.dev/stats` and check the new page.
+**Before you start:** merge the open W2/S3 PRs, approve the Deploy run on the `production` environment, then run `npm run live-check` at the repo root. Every check should pass. On your phone, try the web install too: open the site, Share → Add to Home Screen (iOS) or ⋮ → Install app (Android).
 
 **What the owner does** (no agent can: it needs your accounts):
 
@@ -107,7 +99,7 @@ The owner is away from their Mac, so 🛑 B (below) cannot happen yet. They chos
 3. `docs/deploy.md`, "Phone builds", steps 1-6. Step 4 lists three EAS environment variables: `EXPO_PUBLIC_WORD_ENDPOINT`, `EXPO_PUBLIC_PING_ENDPOINT` and `EXPO_PUBLIC_SITE_URL` (`https://words-and-waffles.pages.dev/`). Without the last one the apps hide **Share link**. The result endpoint needs no variable: it is derived from the ping endpoint.
 4. Confirm the bundle id `app.wordsandwaffles` (`app/app.json`) before the first build: it cannot change afterwards.
 5. Store listing from `docs/store-listing.md`. Privacy label: "Data not collected" (the ping and the end-of-game result are anonymous counters, PRIVACY.md); check that reading against the current Apple and Google definitions.
-6. Screenshots at the sizes in `docs/store-listing.md`. A session can take them for you against production (a variant of `scripts/live-check.mjs` with a 1290x2796 viewport); say so in a PR comment if you want that.
+6. Screenshots at the sizes in `docs/store-listing.md`; step S3 takes them from production.
 
 Optional: once the Expo project exists and the repo is connected to it in the Expo dashboard (GitHub integration), a session can start EAS builds itself through the Expo connector. Store credentials and submission stay with you.
 
@@ -137,4 +129,5 @@ Each has a default the work proceeds on.
 - **Channels (F3):** a group code whose holders set a daily word stored on the Worker, words only from the game list, no names. Default: not planned until you say so.
 - **Links into the apps:** share links open the website, also on phones with the app installed. Default: leave it so until you ask for universal links after 🛑 B.
 - **Stats page (F2):** "Today's word" shows only one puzzle (the busiest of yesterday, today, tomorrow) and headings use the system rounded font, not Bagel Fat One. Default: keep both.
+- **Home-screen name (W2):** the installed web app is labelled "Waffles" on iOS and Android (the full name truncates under the icon); the in-app title stays "Words & Waffles". Default: keep. The installed app's title bar uses the light table colour in dark mode too (a manifest has one `theme_color`).
 - **Phase 2 sync** (iCloud KV, Android backup) is out of v1: it needs native code and breaks Expo Go. Want it later?

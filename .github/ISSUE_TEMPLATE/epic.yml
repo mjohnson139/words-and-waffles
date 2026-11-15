@@ -1,0 +1,26 @@
+name: Epic
+description: A goal that takes several issues
+title: "epic: "
+labels: [epic]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What is true for the player or the owner when this is done
+    validations:
+      required: true
+  - type: textarea
+    id: order
+    attributes:
+      label: Order
+      description: The sub-issues, top first. Add them as sub-issues once they exist.
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Links to the brief, the prototype, engineering notes, past PRs
+    validations:
+      required: false

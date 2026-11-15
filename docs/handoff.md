@@ -46,7 +46,8 @@ Rules: logic in pure, node-tested modules; no new dependency without a reason in
 | W2 | Home-screen install on the web: manifest, apple-touch-icon, icons | done (session 5, PR #6; live once deployed) |
 | K1 | Keyboard bottom padding on the web, so typing near the bottom edge does not hit the browser's own buttons (owner, 2026-11-14) | done (session 6, PR #8) |
 | CI2 | Deploy workflow: one approval per deploy instead of one per job (owner, 2026-11-14) | done (session 6, PR #8; owner confirms one approval on its merge) |
-| S3 | Store screenshots from production at the `docs/store-listing.md` sizes | **next** (default filler while 🛑 B waits; owner may pick another) |
+| T1 | No text selection on the play screen: a long press on iOS Safari selects the whole page (owner, 2026-11-15) | **next** |
+| S3 | Store screenshots from production at the `docs/store-listing.md` sizes | after T1 (default filler while 🛑 B waits; owner may pick another) |
 | 🛑 B | Owner: store accounts, EAS build and submit | open: owner, whenever they are at their Mac; does not block W2 |
 | F3 | Channels: a group code with a stored daily word (needs an owner decision first) | |
 
@@ -61,9 +62,32 @@ Live since 2026-11-13, on the default domains:
 
 Checks at the end of K1 + CI2: 177 app unit tests, 45 Worker tests on real D1, 36 Playwright tests, web bundle 242.6 KB of the 500 KB budget locally. The live check also fetches `/manifest.webmanifest` and its icons (`home-screen install files`, from W2).
 
-## Next step: S3, store screenshots from production
+## Next step: T1, no text selection on the play screen
 
-**Before you start:** PR #8 (K1 + CI2) should be merged and its Deploy run approved; then `npm run live-check` passes all checks including `home-screen install files`. If PR #8 is still open, branch from `claude/words-waffles-continue-j9f2iu` and say so in your PR; do not add S3 to PR #8. Check PR #8's comments for the owner's phone test of K1 (and whether the merge asked for one approval). If the owner has picked a different filler (a PR comment or a note in this file), do that instead: the other offers are the `/stats` key-prefix filter (deferred finding F2-6) and F3 (needs the owner's channels decision first).
+Owner, 2026-11-15, on the live site in iOS Safari (light or dark, PR #8 deployed): a long press selected everything from the header to the keyboard, with blue handles and the Copy / Translate menu (`docs/screenshots/t1-owner-selection.png`). "I don't want that to be selectable. It's pretty annoying when it happens." Do T1 first in its own small PR, then S3 below in the same session if context allows.
+
+**Goal:** on the phone web (Safari, Chrome, installed home-screen app), a long press or a fast double tap anywhere on Play, on the header or on the tabs never starts a text selection, never shows the callout menu and never shows the loupe. Inputs stay usable: the Pick a word field and the backup and restore box in Stats still take typing and paste.
+
+**Where:** `app/App.tsx:29` already puts `userSelect: 'none'` on the web root, and most `Text` has `selectable={false}`, but iOS still selected. Likely causes, to confirm before fixing:
+- iOS needs `-webkit-user-select: none`. Check whether react-native-web emits the prefixed property from `userSelect`; inspect the built CSS in `app/dist`.
+- `-webkit-touch-callout: none` is missing.
+- Some `Text` without `selectable={false}` resets to `user-select: text`: react-native-web's default for `Text` overrides an inherited `none`. The header title (`app/src/ui/Logo.tsx` / `Header.tsx`) and the tab labels are candidates.
+
+**Decide in this step:** where the rule lives. Default: one global rule in the `<style>` block of `app/public/index.html`: `-webkit-user-select: none; user-select: none; -webkit-touch-callout: none` on `#root`, with `input, textarea { -webkit-user-select: text; user-select: text; }`. That way new `Text` cannot regress it. Also decide whether the History and Stats text should stay copyable (default: no; the Stats backup box is a `TextInput` and keeps selection).
+
+**Units:** small enough to do inline or with one `mechanic`.
+
+**Definition of done:**
+- [ ] An e2e test in `app/e2e/smoke.spec.ts` asserts that the computed `user-select` / `-webkit-user-select` is `none` on the header title, a tile, a key and the result card. The same test asserts it is not `none` on the Pick a word input and the backup box. It also checks that `window.getSelection().toString()` is empty after a triple-click or `selectAll` on Play.
+- [ ] PR body has the owner test: long-press the board, the header and a key in Safari; no selection, no menu.
+- [ ] `npm run verify` green; e2e green; review run and answered.
+- [ ] This file rewritten: next is S3.
+
+**Not this step:** S3, 🛑 B, any native change (native `Text` is not selectable by default).
+
+## After T1: S3, store screenshots from production
+
+**Before you start:** the T1 PR should be merged and deployed (screenshots must not show a selection bug fix that is not live), then `npm run live-check` passes all checks including `home-screen install files`. PR #8 (K1 + CI2) is merged; check its comments for the owner's phone test of K1 and whether the deploy asked for one approval. If the owner has picked a different filler (a PR comment or a note in this file), do that instead: the other offers are the `/stats` key-prefix filter (deferred finding F2-6) and F3 (needs the owner's channels decision first).
 
 **Goal:** the owner has the five store screenshots from `docs/store-listing.md` "Screenshots" (Play mid-game, a win with toppings, History, Stats, dark mode) at each required size, taken from the live site, ready to upload during 🛑 B.
 

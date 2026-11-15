@@ -46,6 +46,7 @@ The current architecture map and the invariants that are easy to break. Read the
 - `app/public/index.html` is the web page template: `expo export -p web` uses it instead of Expo's default, fills `%LANG_ISO_CODE%` and `%WEB_TITLE%`, appends the bundle script and the favicon, and appends a plain `theme-color` from `app.json`. So the template holds only the dark `theme-color` (before Expo's, because the first matching tag wins) plus the manifest and Apple tags.
 - `app/public/manifest.webmanifest` and `app/public/icons/` (made by `scripts/make-icons.mjs --web`). The home-screen label is "Waffles" on both platforms.
 - `sw.js` precaches the manifest and icons only when missing and never prunes them: **bump `VERSION` whenever one of them changes**, or installed users keep the old one. Bumping `VERSION` means updating the `waffles-vN` cache name in `app/e2e/offline.spec.ts` too.
+- The viewport has `viewport-fit=cover` (K1), so `env(safe-area-inset-*)` is real on the web; App's `SafeAreaView` pads all four edges. On the web the keyboard adds `webKeyboardClearance(insets.bottom)` (`app/src/ui/fit.ts`: at least 20 px including the inset) under its bottom row, so taps miss the browser's own bottom bar. The keyboard's measured height includes it, so the board shrinks, not the keys. `app/e2e/smoke.spec.ts` "phone fit" checks 30 px under Enter at 360x640, 360x780 and 390x844.
 
 ## Testing layers
 

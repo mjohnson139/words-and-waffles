@@ -239,3 +239,29 @@ for (const scheme of ['light', 'dark'] as const) {
     await shot('stats', true);
   });
 }
+
+// K1: on a phone browser the bottom key row keeps clear of the browser's own bottom bar,
+// and the board still fits above the keyboard without scrolling.
+for (const size of [
+  { width: 360, height: 640 },
+  { width: 360, height: 780 },
+  { width: 390, height: 844 },
+]) {
+  test.describe(`phone fit ${size.width}x${size.height}`, () => {
+    test.use({ viewport: size, isMobile: true, hasTouch: true });
+    test('board fits and the keyboard clears the bottom edge', async ({ page }) => {
+      await openApp(page);
+      await guess(page, wrongWord(answer));
+      const enter = await button(page, 'Enter').boundingBox();
+      const kb = await page.getByLabel('Keyboard', { exact: true }).boundingBox();
+      const board = await page.getByLabel('Guesses', { exact: true }).boundingBox();
+      expect(enter && kb && board).toBeTruthy();
+      // At least 30 px between the bottom key row and the bottom of the page (web only).
+      expect(size.height - (enter!.y + enter!.height)).toBeGreaterThanOrEqual(30);
+      expect(kb!.y + kb!.height).toBeLessThanOrEqual(size.height + 0.5);
+      // The whole board sits above the keyboard, so nothing needs scrolling.
+      expect(board!.y + board!.height).toBeLessThanOrEqual(kb!.y + 0.5);
+      await page.screenshot({ path: `e2e/artifacts/review/kb-${size.width}x${size.height}.png` });
+    });
+  });
+}

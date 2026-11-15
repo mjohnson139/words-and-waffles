@@ -1,4 +1,4 @@
-import { fit } from '../fit';
+import { fit, webKeyboardClearance } from '../fit';
 
 describe('fit', () => {
   it('small phone 320x568', () => {
@@ -19,5 +19,14 @@ describe('fit', () => {
     expect(fit({ width: 400, height: 700, boardTop: 0, keyboardHeight: 300 }).tile).toBeLessThan(
       fit({ width: 400, height: 700, boardTop: 0 }).tile,
     );
+  });
+});
+
+describe('webKeyboardClearance', () => {
+  it('adds only the shortfall below 20 px', () => {
+    expect(webKeyboardClearance(0)).toBe(20);
+    expect(webKeyboardClearance(10)).toBe(10);
+    expect(webKeyboardClearance(20)).toBe(0);
+    expect(webKeyboardClearance(34)).toBe(0);
   });
 });

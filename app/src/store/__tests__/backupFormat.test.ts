@@ -33,7 +33,7 @@ describe('backup format', () => {
     for (const t of ['not json', '[]', 'null', '{"app":"other","v":1,"games":{}}', '{"v":1,"games":{}}']) {
       const r = parseBackup(t);
       expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.error).toBe("That file isn't a Words & Waffles backup.");
+      if (!r.ok) expect(r.error).toBe("That file isn't a Worffle backup.");
     }
   });
 

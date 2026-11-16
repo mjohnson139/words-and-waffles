@@ -1,4 +1,4 @@
-# Words & Waffles
+# Worffle
 
 A cosy daily word game. No accounts, no trackers.
 

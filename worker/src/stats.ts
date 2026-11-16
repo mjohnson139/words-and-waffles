@@ -306,9 +306,9 @@ export function renderHtml(s: Stats): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Words &amp; Waffles stats</title>
+<title>Worffle stats</title>
 <style>${CSS}</style></head><body><main>
-<header><h1>Words &amp; Waffles stats</h1><p>Who is eating breakfast, counted without knowing who.</p></header>
+<header><h1>Worffle stats</h1><p>Who is eating breakfast, counted without knowing who.</p></header>
 <div class="plates">${stat(c.day.total, 'players today')}${stat(c.week.total, 'this week')}${stat(c.month.total, 'this month')}${stat(s.installs, 'installs')}</div>
 <section class="plate"><h2>${HEADINGS[s.span]}</h2>${heatmap(s.span, s.grid, s.today)}</section>
 <section class="plate"><h2>Today's word</h2>${triesBars(s.tries)}</section>

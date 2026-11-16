@@ -15,5 +15,5 @@ export function shareText(g: GameRecord, fmt: (date: string) => string = niceDat
   const num = g.mode === 'daily' ? ' #' + puzzleNumber(g.date) : '';
   const result = (g.status === 'won' ? g.guesses.length : 'X') + '/6';
   const rows = g.guesses.map((x) => score(x, g.answer).map((s) => SQUARE[s]).join(''));
-  return 'Words & Waffles \u{1F9C7}' + num + ' · ' + fmt(g.date) + ' · ' + result + '\n' + rows.join('\n');
+  return 'Worffle \u{1F9C7}' + num + ' · ' + fmt(g.date) + ' · ' + result + '\n' + rows.join('\n');
 }

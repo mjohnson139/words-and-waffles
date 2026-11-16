@@ -6,7 +6,7 @@ This policy is also the privacy text for the app store listings.
 
 ## The short version
 
-Words & Waffles has no accounts, no ads, no analytics and no trackers. Your games stay on your device.
+Worffle has no accounts, no ads, no analytics and no trackers. Your games stay on your device.
 
 ## What the app sends
 

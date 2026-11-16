@@ -1,4 +1,4 @@
-/* Words & Waffles service worker: offline after the first visit.
+/* Worffle service worker: offline after the first visit.
  *
  * Strategy
  *  - install: precache '/' (not '/index.html': Cloudflare Pages redirects it to

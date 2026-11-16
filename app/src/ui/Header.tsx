@@ -25,7 +25,7 @@ export function Header({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
           numberOfLines={1}
           style={{ fontFamily: fonts.display, fontSize, lineHeight: fontSize, color: t.syrup, letterSpacing: 0.2 }}
         >
-          Words <Text style={{ color: t.berry }}>&</Text> Waffles
+          Wor<Text style={{ color: t.berry }}>ff</Text>le
         </Text>
       </View>
       <View

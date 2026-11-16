@@ -21,7 +21,7 @@ export const backupFileName = (date: string): string => `${BACKUP_APP}-${date}.j
 
 export type ParsedBackup = { ok: true; games: Games } | { ok: false; error: string };
 
-const NOT_A_BACKUP = "That file isn't a Words & Waffles backup.";
+const NOT_A_BACKUP = "That file isn't a Worffle backup.";
 
 export function parseBackup(text: string): ParsedBackup {
   let data: unknown;

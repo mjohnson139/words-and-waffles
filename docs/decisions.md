@@ -4,9 +4,11 @@ Product decisions the owner has made, with the reason, newest first. Below them,
 
 ## Decided
 
+### 2026-11-16: The app is called "Worffle"
+The display name is **Worffle**, said "WOR-ful": a mashup of *word* and *waffle* that avoids both the trademarked name the hard lines forbid and the existing daily word game called Waffle. It replaces "Words & Waffles" everywhere a player sees it: the app and home-screen label (short enough not to truncate, so the "Waffles" short label below is retired), the in-app header (the "ff" in berry, where the ampersand was), share text, the backup error, the `/stats` page and the store listing. The slug, URL scheme, bundle id `app.wordsandwaffles`, backup file key `words-and-waffles`, repo name and Worker name stay, so installs, saved backups and deploys keep working.
 ### 2026-11-15: The stats heatmap grows with the history
 The `/stats` heatmap shows the span the history fills, so a new game doesn't look empty: under 14 days since the first counted day it shows **this week** (seven large cells, Monday first, each with its count, today outlined); under 10 weeks, **this month** (the ISO weeks that cover the calendar month); after that, **the year** (53 weeks). The heading follows: "A week / month / year of breakfasts". Colours scale against the busiest day in view. The span is worked out from the earliest `day:` counter, so nobody has to switch it by hand. `/stats.json` gains `span` and `grid` and keeps `year`. Shows on `/stats` (`worker/src/stats.ts`, issue #21).
-### 2026-11-14: The installed web app is labelled "Waffles"
+### 2026-11-14: The installed web app is labelled "Waffles" (superseded 2026-11-16)
 The home-screen label is "Waffles" on iOS and Android because the full name truncates under the icon. The in-app title stays "Words & Waffles". The installed app's title bar uses the light table colour in dark mode too, because a manifest has one `theme_color`. Shows in `app/public/manifest.webmanifest` (PR #6).
 ### 2026-11-13: Stats page: one puzzle under "Today's word", system rounded font
 "Today's word" shows only one puzzle (the busiest of yesterday, today, tomorrow); yesterday's tries are not shown when today has few results, to keep the page short. Headings use `ui-rounded, "SF Pro Rounded", system-ui` at weight 800, because the app's display face (Bagel Fat One) is not loaded: the CSP allows no fonts and the hard lines forbid a CDN. Self-hosting the font is possible later and not worth the bundle now. Shows on `/stats` (`worker/src/stats.ts`).
@@ -26,7 +28,7 @@ On the web the link is built from `location`; on iOS and Android it is `EXPO_PUB
 ## In force by default (open on #16)
 
 ### 2026-11-13: Share text includes the puzzle number
-Daily results add the puzzle number (`Words & Waffles 🧇 #12 · Thu, Nov 12 · 3/6`). The plan added `#N` and the owner could veto; the default is in force.
+Daily results add the puzzle number (`Worffle 🧇 #12 · Thu, Nov 12 · 3/6`). The plan added `#N` and the owner could veto; the default is in force.
 ### 2026-11-13: Default domains, bundle id and licence until the owner says otherwise
 Production stays on `*.workers.dev` (Worker) and `*.pages.dev` (site) until a domain is picked; a custom domain would make the ping rate-limit rule in `docs/deploy.md` step 8 available. The bundle id is `app.wordsandwaffles` (`app/app.json`) and cannot change after the first store build. The licence is MIT (brief default), changeable before the repo is promoted.
 ### 2026-11-13: Phase 2 sync is out of v1

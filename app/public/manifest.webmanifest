@@ -1,6 +1,6 @@
 {
-  "name": "Words & Waffles",
-  "short_name": "Waffles",
+  "name": "Worffle",
+  "short_name": "Worffle",
   "description": "A cosy daily word game. One word a day, no accounts, no trackers.",
   "start_url": "/",
   "scope": "/",

@@ -12,7 +12,7 @@ describe('shareText', () => {
   it('daily win has puzzle number and emoji rows', () => {
     const g = game('daily', ['crane', 'terse'], 'won');
     expect(shareText(g, fmt)).toBe(
-      'Words & Waffles \u{1F9C7} #12 · D2026-11-12 · 2/6\n' +
+      'Worffle \u{1F9C7} #12 · D2026-11-12 · 2/6\n' +
         '\u{2B1B}\u{1F7E8}\u{2B1B}\u{2B1B}\u{1F7E9}\n' +
         '\u{1F7E9}\u{1F7E9}\u{1F7E9}\u{1F7E9}\u{1F7E9}',
     );
@@ -20,12 +20,12 @@ describe('shareText', () => {
   it('daily loss shows X/6', () => {
     const g = game('daily', ['crane', 'crane', 'crane', 'crane', 'crane', 'crane'], 'lost');
     const first = shareText(g, fmt).split('\n')[0];
-    expect(first).toBe('Words & Waffles \u{1F9C7} #12 · D2026-11-12 · X/6');
+    expect(first).toBe('Worffle \u{1F9C7} #12 · D2026-11-12 · X/6');
     expect(shareText(g, fmt).split('\n')).toHaveLength(7);
   });
   it('extra has no number', () => {
     expect(shareText(game('extra', ['terse'], 'won'), fmt).split('\n')[0]).toBe(
-      'Words & Waffles \u{1F9C7} · D2026-11-12 · 1/6',
+      'Worffle \u{1F9C7} · D2026-11-12 · 1/6',
     );
   });
   it('marks near letters yellow', () => {

@@ -13,8 +13,8 @@ test('manifest has the install fields and no external URLs', async ({ request })
   expect(res.headers()['content-type']).toContain('application/manifest+json');
   const m = await res.json();
   expect(m).toMatchObject({
-    name: 'Words & Waffles',
-    short_name: 'Waffles',
+    name: 'Worffle',
+    short_name: 'Worffle',
     start_url: '/',
     scope: '/',
     display: 'standalone',
@@ -58,7 +58,7 @@ test('index.html carries the install head tags once', async ({ request }) => {
   const html = await (await request.get('/')).text();
   expect(html).toContain('<link rel="manifest" href="/manifest.webmanifest"');
   expect(html).toContain('<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"');
-  expect(html).toContain('name="apple-mobile-web-app-title" content="Waffles"');
+  expect(html).toContain('name="apple-mobile-web-app-title" content="Worffle"');
   expect(html).toContain('name="apple-mobile-web-app-capable" content="yes"');
   expect(html).toContain('name="mobile-web-app-capable" content="yes"');
   expect(html).toContain('name="apple-mobile-web-app-status-bar-style" content="default"');

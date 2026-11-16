@@ -35,7 +35,7 @@ word game,daily puzzle,word puzzle,five letters,guess,vocabulary,brain,cozy,offl
 
 ## Screenshots
 
-Capture before 🛑 B against production (a variant of `scripts/live-check.mjs` with a store-sized viewport), at the sizes each store requires:
+Capture before the store submission (issue #12) against production (a variant of `scripts/live-check.mjs` with a store-sized viewport), at the sizes each store requires:
 
 1. Play, mid-game
 2. A win, with toppings

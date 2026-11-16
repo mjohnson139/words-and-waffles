@@ -41,10 +41,15 @@ This is a hard line. Pull requests that add any of the following are closed:
 
 Player data stays on the device unless the player chooses to export it. See [PRIVACY.md](PRIVACY.md).
 
+## Issues
+
+Bugs and features go in as issues; the templates set the title prefix and label. Prefixes are the conventional-commit words: `feat`, `fix`, `chore`, `docs`, and `epic` for a goal that takes several issues. Title it the way you would title the commit: `fix(web): long press selects the whole page`.
+
 ## Pull requests
 
 - Keep them small and focused.
-- Use conventional commit messages: `feat`, `fix`, `docs`, `ci`, or `chore`.
+- Use conventional commit messages: `feat`, `fix`, `docs`, `ci`, `chore`, `refactor` or `test`.
+- Say `Closes #N` in the description. Work is tracked in GitHub issues; the title convention is in [`.github/dev-process.md`](.github/dev-process.md).
 - `npm run verify` must be green.
 - Describe how you tested the change. Use the template that opens with each pull request.
 

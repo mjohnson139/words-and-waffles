@@ -1,6 +1,7 @@
-name: Idea
-description: Suggest a change or a new feature
-labels: [idea]
+name: Feature
+description: A change or a new feature
+title: "feat: "
+labels: [feat]
 body:
   - type: textarea
     id: idea

@@ -90,7 +90,7 @@ Cloudflare's edge sees the connecting IP of every request, and the rule's securi
 4. Update `WORD_ENDPOINT` and `PING_ENDPOINT` in GitHub variables (step 4).
 5. Re-run Deploy (step 6).
 
-## Phone builds (later, step 🛑 B)
+## Phone builds (issue #13)
 
 1. `cd app`
 2. `npx eas-cli@latest login`

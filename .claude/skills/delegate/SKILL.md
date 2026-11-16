@@ -5,7 +5,7 @@ description: Write a brief and hand one unit of work to a cheaper subagent (impl
 
 # Delegate a unit
 
-The orchestrator plans, reviews and integrates; delegates type. A delegate starts cold, so the brief is the whole world it knows.
+The orchestrator (always Opus at high effort, or better) designs, plans, decides, reviews and integrates; delegates (Sonnet, Haiku, pinned in `.claude/agents/`) type. Anything clearly defined and well scoped is a delegate's job: a specified unit of code, mechanical edits, an inventory, a run of `gh` or CI commands. A delegate starts cold, so the brief is the whole world it knows.
 
 ## Pick the agent
 
@@ -26,7 +26,7 @@ If `.claude/agents/` is not loaded in this session (agents load at session start
 
 ```
 Repo: /path/to/words-and-waffles (branch <name>). Read AGENTS.md first.
-Unit: <step id> - <one line>.
+Unit: issue #<n> - <one line>.
 
 Goal: <what is true when this is done, one or two sentences>.
 

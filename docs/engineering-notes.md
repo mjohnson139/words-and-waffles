@@ -1,6 +1,6 @@
 # Engineering notes
 
-The current architecture map and the invariants that are easy to break. Read the section for the area you are changing. Scope and the step order live in the [plan](plans/2026-11-13-001-feat-v1-app-plan.md); investigations live in [solutions](solutions/README.md); how to work lives in the [dev process](../.github/dev-process.md).
+The current architecture map and the invariants that are easy to break. Read the section for the area you are changing. Scope and order live in GitHub issues (epics and their sub-issues); product decisions live in [decisions](decisions.md); investigations live in [solutions](solutions/README.md); how to work lives in the [dev process](../.github/dev-process.md).
 
 ## Layout and ownership
 
@@ -20,10 +20,10 @@ The current architecture map and the invariants that are easy to break. Read the
 - **Stats are derived, never stored.** Only game records persist. A backup is the records and nothing else.
 - **Merging games** keeps the record with the higher `rank()` per id (finished beats playing, more guesses beat fewer). Restore and any future sync use the same rule.
 - **A daily game that has guesses keeps its answer**, even if the word endpoint later returns a different word for that date.
-- **Nothing identifies a player.** The ping body has five fields and no ID; the result body (`/v1/result`, F2) has two, the daily date and the tries, and its counter key has no platform; the Worker stores counters only and never logs requests. The rate limiter's IP map lives in isolate memory only.
+- **Nothing identifies a player.** The ping body has five fields and no ID; the result body (`/v1/result`, PR #5) has two, the daily date and the tries, and its counter key has no platform; the Worker stores counters only and never logs requests. The rate limiter's IP map lives in isolate memory only.
 - **The word hashing is obfuscation**, not security. Never describe it otherwise.
 - **Expo Go compatible:** only Expo SDK modules, no custom native code.
-- **Animations** use the native driver on iOS/Android and the JS driver on web; reduced motion skips them entirely, as the prototype's `calm` does.
+- **Animations** use the native driver on iOS/Android and the JS driver on web; reduced motion skips them entirely, as the prototype's `calm` does. Timings: tile flip 460 ms staggered 240 ms with the colour applied at the midpoint, pop 130 ms, shake 400 ms, hop 600 ms staggered 80 ms, toppings about 40 particles over 4.2 s.
 
 ## The daily word, end to end
 
@@ -35,21 +35,31 @@ The current architecture map and the invariants that are easy to break. Read the
 4. The ping (`usePingOnOpen`) also waits for settings, so an opted-out player never sends one, and runs again when the date changes; `maybePing` dedupes per local day from stored state.
 5. When today's daily game ends, `useResultOnFinish` sends `{d, g}` to the ping endpoint's sibling `/v1/result` (`resultEndpoint`), under the same switch, at most once per date (`ww:result`).
 
-## Share links (F1)
+## Share links (PR #4)
 
 - A shared word travels only in the URL fragment, `#w=1.<salt>.<cells>` (`src/game/shareLink.ts`), so it never reaches a server, a log or the service worker's cache key. Never move it to a query string.
 - `App.tsx` notices the fragment (launch or `hashchange`) and replaces it with `#play`; `PlayScreen` opens it with `resolveLink` once games are loaded. The game id is `c-<salt>`, so the same link reopens the same game.
 - Links point at `location` on web and at `EXPO_PUBLIC_SITE_URL` on native; empty hides the share buttons. Opening links in the installed apps (universal links) is not built yet.
 
-## Home-screen install (W2)
+## Home-screen install (PR #6)
 
 - `app/public/index.html` is the web page template: `expo export -p web` uses it instead of Expo's default, fills `%LANG_ISO_CODE%` and `%WEB_TITLE%`, appends the bundle script and the favicon, and appends a plain `theme-color` from `app.json`. So the template holds only the dark `theme-color` (before Expo's, because the first matching tag wins) plus the manifest and Apple tags.
 - `app/public/manifest.webmanifest` and `app/public/icons/` (made by `scripts/make-icons.mjs --web`). The home-screen label is "Waffles" on both platforms.
 - `sw.js` precaches the manifest and icons only when missing and never prunes them: **bump `VERSION` whenever one of them changes**, or installed users keep the old one. Bumping `VERSION` means updating the `waffles-vN` cache name in `app/e2e/offline.spec.ts` too.
-- The viewport has `viewport-fit=cover` (K1), so `env(safe-area-inset-*)` is real on the web; App's `SafeAreaView` pads all four edges. On the web the keyboard adds `webKeyboardClearance(insets.bottom)` (`app/src/ui/fit.ts`: at least 20 px including the inset) under its bottom row, so taps miss the browser's own bottom bar. The keyboard's measured height includes it, so the board shrinks, not the keys. `app/e2e/smoke.spec.ts` "phone fit" checks 30 px under Enter at 360x640, 360x780 and 390x844.
+- The viewport has `viewport-fit=cover` (PR #8), so `env(safe-area-inset-*)` is real on the web; App's `SafeAreaView` pads all four edges. On the web the keyboard adds `webKeyboardClearance(insets.bottom)` (`app/src/ui/fit.ts`: at least 20 px including the inset) under its bottom row, so taps miss the browser's own bottom bar. The keyboard's measured height includes it, so the board shrinks, not the keys. `app/e2e/smoke.spec.ts` "phone fit" checks 30 px under Enter at 360x640, 360x780 and 390x844.
 
 ## Testing layers
 
 - **Unit (Vitest, node):** everything in `src/game/`, plus pure helpers next to screens (`src/ui/**/*.ts`), the API clients with a fake `fetch` and an in-memory AsyncStorage mock, and `worker/test/` on real D1 in Miniflare.
 - **E2E (Playwright, `app/e2e/`):** the web export with a fixed clock (`page.clock.install`; `setFixedTime` freezes React Native `Animated`), a stubbed `https://words.test` endpoint, and a third-party-host tripwire on every test. Review screenshots land in `app/e2e/artifacts/review/` (git-ignored).
-- **Phone:** feel only (🚩/🛑 rows), through Expo Go.
+- **Phone:** feel only (the owner's phone checks, issue #15), through Expo Go.
+
+## Production
+
+Live since 2026-11-13, on the default domains:
+
+- Site: `https://words-and-waffles.pages.dev` (Cloudflare Pages project `words-and-waffles`, Web Analytics off).
+- Worker: `https://words-and-waffles.mjohnson139.workers.dev` (`/v1/word`, `/v1/ping`, `/stats`, `/stats.json`), D1 database `words-and-waffles`, `WORD_SECRET` set.
+- Deploy: merging to `main` runs CI, then the Deploy workflow, whose one `deploy` job (D1 migrations, Worker, web export, Pages, in that order) waits for the owner's approval on the `production` environment, once per run (PR #8). Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` and variables `WORD_ENDPOINT` and `PING_ENDPOINT` are set in the repo.
+
+`npm run live-check` (`scripts/live-check.mjs`) proves the five "Done means" items against production in about a minute. Its ping goes to production with `X-Dry-Run: 1`, which the Worker validates but never counts, and its last check proves `/stats` did not move. Run it after any deploy.

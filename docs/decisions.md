@@ -4,12 +4,14 @@ Product decisions the owner has made, with the reason, newest first. Below them,
 
 ## Decided
 
+### 2026-11-15: The stats heatmap grows with the history
+The `/stats` heatmap shows the span the history fills, so a new game doesn't look empty: under 14 days since the first counted day it shows **this week** (seven large cells, Monday first, each with its count, today outlined); under 10 weeks, **this month** (the ISO weeks that cover the calendar month); after that, **the year** (53 weeks). The heading follows: "A week / month / year of breakfasts". Colours scale against the busiest day in view. The span is worked out from the earliest `day:` counter, so nobody has to switch it by hand. `/stats.json` gains `span` and `grid` and keeps `year`. Shows on `/stats` (`worker/src/stats.ts`, issue #21).
 ### 2026-11-14: The installed web app is labelled "Waffles"
 The home-screen label is "Waffles" on iOS and Android because the full name truncates under the icon. The in-app title stays "Words & Waffles". The installed app's title bar uses the light table colour in dark mode too, because a manifest has one `theme_color`. Shows in `app/public/manifest.webmanifest` (PR #6).
 ### 2026-11-13: Stats page: one puzzle under "Today's word", system rounded font
 "Today's word" shows only one puzzle (the busiest of yesterday, today, tomorrow); yesterday's tries are not shown when today has few results, to keep the page short. Headings use `ui-rounded, "SF Pro Rounded", system-ui` at weight 800, because the app's display face (Bagel Fat One) is not loaded: the CSP allows no fonts and the hard lines forbid a CDN. Self-hosting the font is possible later and not worth the bundle now. Shows on `/stats` (`worker/src/stats.ts`).
 ### 2026-11-13: The stats page follows the app's look
-`/stats` takes the app's look and texture: a GitHub-style year heatmap of daily players, today's tries distribution and win rate, and the platform split. Shorter and more interesting than the old tables. Shows on `/stats`.
+`/stats` takes the app's look and texture: a heatmap of daily players (its span grows with the history; see 2026-11-15), today's tries distribution and win rate, and the platform split. Shorter and more interesting than the old tables. Shows on `/stats`.
 ### 2026-11-13: A second anonymous event: the end-of-game result
 When a daily game ends, the app may send the date and the guess count (1-6 or X), with no identifier, under the same opt-out switch as the ping. PRIVACY.md, the README and the `/stats` copy changed from "one ping" to two events when PR #5 landed, and not before. Shows in `POST /v1/result` and PRIVACY.md. The store privacy label "Data not collected" still holds: the result is not linked to a user, carries no identifier and is aggregated on arrival.
 ### 2026-11-13: Channels start as share links only

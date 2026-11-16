@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { dnum } from '../../app/src/game/dates';
-import { currentTries, heatLevel, triesSummary, yearGrid } from '../src/stats';
+import { addDays, dnum } from '../../app/src/game/dates';
+import { currentTries, firstDay, heatGrid, heatLevel, heatSpan, triesSummary, yearGrid } from '../src/stats';
 
 describe('heatLevel', () => {
   it('is 0 for nothing and scales 1..4 against the max', () => {
@@ -69,5 +69,82 @@ describe('currentTries', () => {
   });
   it('falls back to the UTC date with no results at all', () => {
     expect(currentTries('2026-11-13', at({}))).toMatchObject({ date: '2026-11-13', played: 0 });
+  });
+});
+
+describe('heatSpan', () => {
+  const today = '2026-11-15';
+  it('picks the span from how far back the history goes', () => {
+    expect(heatSpan(today, null)).toBe('week');
+    expect(heatSpan(today, today)).toBe('week');
+    expect(heatSpan(today, addDays(today, -12))).toBe('week');
+    expect(heatSpan(today, addDays(today, -13))).toBe('month');
+    expect(heatSpan(today, addDays(today, -68))).toBe('month');
+    expect(heatSpan(today, addDays(today, -69))).toBe('year');
+    expect(heatSpan(today, addDays(today, 1))).toBe('week');
+  });
+});
+
+describe('firstDay', () => {
+  it('returns the earliest day with a count, ignoring zeros, platform keys and other keys', () => {
+    const rows: [string, number][] = [
+      ['day:2026-01-01', 0],
+      ['day:2026-02-01:ios', 5],
+      ['week:2026-W01', 5],
+      ['day:2026-03-05', 2],
+      ['day:2026-03-02', 1],
+      ['installs', 9],
+    ];
+    expect(firstDay(rows)).toBe('2026-03-02');
+  });
+  it('is null with nothing', () => {
+    expect(firstDay([])).toBeNull();
+  });
+});
+
+describe('heatGrid', () => {
+  const dates = (g: ReturnType<typeof heatGrid>) => g.flat().map((c) => c.date);
+
+  it('week: one column holding today', () => {
+    const g = heatGrid('2026-11-15', 'week', () => 1);
+    expect(g).toHaveLength(1);
+    expect(dates(g)[0]).toBe('2026-11-09');
+    expect(dates(g)[6]).toBe('2026-11-15');
+    expect(g[0].some((c) => c.future)).toBe(false);
+  });
+
+  it('week: future days are zero and levels scale against the week only', () => {
+    const get = (k: string) => (k === 'day:2026-11-02' ? 1000 : k === 'day:2026-11-12' ? 99 : k === 'day:2026-11-10' ? 10 : 0);
+    const g = heatGrid('2026-11-11', 'week', get)[0];
+    expect(g.slice(3).every((c) => c.future && c.n === 0)).toBe(true);
+    expect(g[1]).toMatchObject({ date: '2026-11-10', n: 10, level: 4 });
+  });
+
+  it('month: weeks covering the calendar month', () => {
+    const g = heatGrid('2026-11-15', 'month', () => 1);
+    expect(g).toHaveLength(6);
+    expect(g[0][0].date).toBe('2026-10-26');
+    expect(g[5][6].date).toBe('2026-12-06');
+    const flat = g.flat();
+    expect(flat.filter((c) => c.future).every((c) => c.date > '2026-11-15')).toBe(true);
+    expect(flat.find((c) => c.date === '2026-11-16')?.future).toBe(true);
+    expect(flat.find((c) => c.date === '2026-11-15')?.future).toBeUndefined();
+  });
+
+  it('month: a Monday-start 28-day month is 4 columns', () => {
+    const g = heatGrid('2027-02-10', 'month', () => 0);
+    expect(g).toHaveLength(4);
+    expect(g[0][0].date).toBe('2027-02-01');
+    expect(g[3][6].date).toBe('2027-02-28');
+  });
+
+  it('month: ending on a Sunday adds no extra column', () => {
+    const g = heatGrid('2026-05-20', 'month', () => 0); // May 31 2026 is a Sunday
+    expect(g.flat().at(-1)?.date).toBe('2026-05-31');
+  });
+
+  it('year equals yearGrid', () => {
+    const get = (k: string) => (k === 'day:2026-11-10' ? 3 : 0);
+    expect(heatGrid('2026-11-13', 'year', get)).toEqual(yearGrid('2026-11-13', get));
   });
 });

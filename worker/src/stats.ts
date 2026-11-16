@@ -1,4 +1,4 @@
-import { addDays, dnum, isoWeek, monthOf } from '../../app/src/game/dates';
+import { addDays, dnum, isDateString, isoWeek, monthOf } from '../../app/src/game/dates';
 import { errorResponse } from './http';
 
 const PLATFORMS = ['ios', 'android', 'web'] as const;
@@ -39,7 +39,9 @@ export interface Stats {
   weeks: Row[];
   months: Row[];
   current: { day: Row; week: Row; month: Row };
-  year: Cell[][];
+  year: Cell[][]; // kept for /stats.json readers; `grid` is what /stats draws
+  span: HeatSpan;
+  grid: Cell[][];
   tries: Tries;
 }
 
@@ -47,17 +49,37 @@ export interface Stats {
 export const heatLevel = (n: number, max: number): Cell['level'] =>
   n <= 0 || max <= 0 ? 0 : (Math.min(4, Math.max(1, Math.ceil((4 * n) / max))) as Cell['level']);
 
-/** 53 ISO-week columns (Monday first); the last holds `today`, later cells are `future`. */
-export function yearGrid(today: string, get: (key: string) => number): Cell[][] {
-  const weekday = (dnum(today) + 3) % 7; // 1970-01-01 was a Thursday; Monday is 0
-  const first = addDays(today, -weekday - 52 * 7);
-  const cells = Array.from({ length: 53 * 7 }, (_, i) => {
+export type HeatSpan = 'week' | 'month' | 'year';
+
+const mondayIndex = (d: string): number => (dnum(d) + 3) % 7; // 1970-01-01 was a Thursday; Monday is 0
+const mondayOf = (d: string): string => addDays(d, -mondayIndex(d));
+
+/** Days of history (today - firstDay + 1): under 14 -> week, under 70 -> month, else year. */
+export function heatSpan(today: string, first: string | null): HeatSpan {
+  if (!first || first > today) return 'week';
+  const days = dnum(today) - dnum(first) + 1;
+  return days < 14 ? 'week' : days < 70 ? 'month' : 'year';
+}
+
+/** Earliest date with a `day:<date>` count above 0; platform-suffixed keys don't count. */
+export function firstDay(counts: Iterable<[string, number]>): string | null {
+  let first: string | null = null;
+  for (const [key, n] of counts) {
+    const date = key.slice(4);
+    if (key.startsWith('day:') && isDateString(date) && n > 0 && (first === null || date < first)) first = date;
+  }
+  return first;
+}
+
+/** Monday-first columns of 7 cells from `first`; cells after `today` are `future`. */
+function buildGrid(today: string, first: string, columns: number, get: (key: string) => number): Cell[][] {
+  const cells = Array.from({ length: columns * 7 }, (_, i) => {
     const date = addDays(first, i);
     const future = date > today;
     return { date, future, n: future ? 0 : get(`day:${date}`) };
   });
   const max = Math.max(0, ...cells.map((c) => c.n));
-  return Array.from({ length: 53 }, (_, c) =>
+  return Array.from({ length: columns }, (_, c) =>
     cells.slice(c * 7, c * 7 + 7).map(({ date, n, future }): Cell => {
       const cell: Cell = { date, n, level: heatLevel(n, max) };
       if (future) cell.future = true;
@@ -65,6 +87,20 @@ export function yearGrid(today: string, get: (key: string) => number): Cell[][] 
     }),
   );
 }
+
+/** week: the ISO week holding today; month: the ISO weeks covering today's month; year: 53 weeks ending with today's. */
+export function heatGrid(today: string, span: HeatSpan, get: (key: string) => number): Cell[][] {
+  if (span === 'week') return buildGrid(today, mondayOf(today), 1, get);
+  if (span === 'year') return buildGrid(today, addDays(mondayOf(today), -52 * 7), 53, get);
+  const monthStart = `${monthOf(today)}-01`;
+  // 31 days after the 1st is always in the next month; the day before its 1st ends this one.
+  const monthEnd = addDays(`${monthOf(addDays(monthStart, 31))}-01`, -1);
+  const first = mondayOf(monthStart);
+  return buildGrid(today, first, (dnum(mondayOf(monthEnd)) - dnum(first)) / 7 + 1, get);
+}
+
+/** 53 ISO-week columns (Monday first); the last holds `today`, later cells are `future`. */
+export const yearGrid = (today: string, get: (key: string) => number): Cell[][] => heatGrid(today, 'year', get);
 
 export function triesSummary(date: string, get: (key: string) => number): Tries {
   const counts = Object.fromEntries(TRY_KEYS.map((g) => [g, get(`tries:${date}:${g}`)])) as Tries['counts'];
@@ -105,6 +141,9 @@ export async function loadStats(db: D1Database, now: number): Promise<Stats> {
     if (!monthSet.includes(m)) monthSet.push(m);
   }
 
+  const year = yearGrid(today, get);
+  const span = heatSpan(today, firstDay(counts));
+
   return {
     installs: get('installs'),
     today,
@@ -116,7 +155,9 @@ export async function loadStats(db: D1Database, now: number): Promise<Stats> {
       week: row(isoWeek(today), `week:${isoWeek(today)}`),
       month: row(monthOf(today), `month:${monthOf(today)}`),
     },
-    year: yearGrid(today, get),
+    year,
+    span,
+    grid: span === 'year' ? year : heatGrid(today, span, get),
     tries: currentTries(today, get),
   };
 }
@@ -142,24 +183,49 @@ const cellTitle = (c: Cell, row: number): string => {
 const stat = (n: number, label: string): string =>
   `<div class="plate"><div class="num">${esc(n)}</div><div class="lbl">${esc(label)}</div></div>`;
 
-const heatmap = (year: Cell[][]): string => {
-  const cols = year
+const WEEKDAYS = 'MTWTFSS';
+const HEADINGS: Record<HeatSpan, string> = {
+  week: 'A week of breakfasts',
+  month: 'A month of breakfasts',
+  year: 'A year of breakfasts',
+};
+
+/** One heat cell; `body` goes inside it (the week view shows the count). */
+const heatCell = (c: Cell, r: number, today: string, body = ''): string =>
+  c.future
+    ? '<i class="cell fut"></i>'
+    : `<i class="cell l${c.level}${c.date === today ? ' today' : ''}" title="${esc(cellTitle(c, r))}">${body}</i>`;
+
+const yearHeat = (grid: Cell[][], today: string): string => {
+  const cols = grid
     .map((col) => {
       // A month starts in this column if its first day falls here.
       const first = col.find((c) => !c.future && c.date.endsWith('-01'));
       const label = first ? MONTHS[Number(first.date.slice(5, 7)) - 1][0] : '';
-      const cells = col
-        .map((c, r) =>
-          c.future
-            ? '<i class="cell fut"></i>'
-            : `<i class="cell l${c.level}" title="${esc(cellTitle(c, r))}"></i>`,
-        )
-        .join('');
+      const cells = col.map((c, r) => heatCell(c, r, today)).join('');
       return `<div class="col"><span class="mo">${esc(label)}</span>${cells}</div>`;
     })
     .join('');
+  return `<div class="scroll"><div class="heat">${cols}</div></div>`;
+};
+
+/** Week columns laid out row by row, a weekday letter starting each row. */
+const monthHeat = (grid: Cell[][], today: string): string => {
+  const rows = [...WEEKDAYS]
+    .map((d, r) => `<span class="wd">${d}</span>${grid.map((col) => heatCell(col[r], r, today)).join('')}`)
+    .join('');
+  return `<div class="month" style="grid-template-columns:auto repeat(${grid.length},1fr)">${rows}</div>`;
+};
+
+const weekHeat = ([col]: Cell[][], today: string): string =>
+  `<div class="week">${col
+    .map((c, r) => `<div><span class="wd">${WEEKDAYS[r]}</span>${heatCell(c, r, today, esc(c.n))}</div>`)
+    .join('')}</div>`;
+
+const heatmap = (span: HeatSpan, grid: Cell[][], today: string): string => {
+  const body = { week: weekHeat, month: monthHeat, year: yearHeat }[span](grid, today);
   const legend = [0, 1, 2, 3, 4].map((l) => `<i class="cell l${l}"></i>`).join('');
-  return `<div class="scroll"><div class="heat">${cols}</div></div><div class="legend">Less ${legend} More</div>`;
+  return `${body}<div class="legend">Less ${legend} More</div>`;
 };
 
 const triesBars = (t: Tries): string => {
@@ -190,8 +256,8 @@ const platformBar = (title: string, r: Row): string => {
 };
 
 const CSS = `
-:root{--table:#e6edf8;--check:rgba(62,104,178,.09);--ink:#2b1a10;--muted:#6c5a4f;--plate:#fff;--line:#d3dbea;--waffle:#e2a23e;--syrup:#8a4513;--berry:#3d4fb3;--hit:#3c9a57;--onBerry:#fff;--l1:#f7e6bb;--l2:#ffe37a;--l3:#e2a23e;--l4:#8a4513}
-@media (prefers-color-scheme:dark){:root{--table:#171b30;--check:rgba(255,255,255,.035);--ink:#f7eddb;--muted:#b5ab9b;--plate:#232946;--line:#363e63;--syrup:#eab56c;--berry:#9aa8ff;--hit:#48a864;--onBerry:#141831;--l1:#4a4460;--l2:#8a6d2c;--l3:#d69a3c;--l4:#ffe37a}}
+:root{--on3:var(--ink);--on4:#fff;--table:#e6edf8;--check:rgba(62,104,178,.09);--ink:#2b1a10;--muted:#6c5a4f;--plate:#fff;--line:#d3dbea;--waffle:#e2a23e;--syrup:#8a4513;--berry:#3d4fb3;--hit:#3c9a57;--onBerry:#fff;--l1:#f7e6bb;--l2:#ffe37a;--l3:#e2a23e;--l4:#8a4513}
+@media (prefers-color-scheme:dark){:root{--on3:#2b1a10;--on4:#2b1a10;--table:#171b30;--check:rgba(255,255,255,.035);--ink:#f7eddb;--muted:#b5ab9b;--plate:#232946;--line:#363e63;--syrup:#eab56c;--berry:#9aa8ff;--hit:#48a864;--onBerry:#141831;--l1:#4a4460;--l2:#8a6d2c;--l3:#d69a3c;--l4:#ffe37a}}
 *{box-sizing:border-box}
 body{margin:0;padding:16px;color:var(--ink);font:16px/1.5 system-ui,sans-serif;background-color:var(--table);background-image:repeating-linear-gradient(0deg,var(--check) 0 22px,transparent 22px 44px),repeating-linear-gradient(90deg,var(--check) 0 22px,transparent 22px 44px)}
 main{max-width:680px;margin:0 auto}
@@ -212,6 +278,14 @@ header p{margin:0 0 16px;color:var(--muted)}
 .cell{display:block;width:100%;aspect-ratio:1;border-radius:2px;background:var(--line)}
 .cell.l1{background:var(--l1)}.cell.l2{background:var(--l2)}.cell.l3{background:var(--l3)}.cell.l4{background:var(--l4)}
 .cell.fut{background:none}
+.month{display:grid;gap:4px;align-items:center;max-width:360px}
+.month .cell{border-radius:4px}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;max-width:440px;text-align:center}
+.wd{font-size:.75rem;color:var(--muted);font-weight:700}
+.week .cell{display:flex;align-items:center;justify-content:center;border-radius:10px;margin-top:2px;font-weight:800;font-size:1.05rem;font-style:normal;color:var(--ink)}
+.week .cell.l3{color:var(--on3)}.week .cell.l4{color:var(--on4)}
+.month .cell.fut,.week .cell.fut{border:2px dashed var(--line)}
+.month .today,.week .today{outline:2px solid var(--berry);outline-offset:2px}
 .legend{display:flex;gap:3px;align-items:center;justify-content:flex-end;font-size:.8rem;color:var(--muted);margin-top:6px}
 .legend .cell{display:inline-block;width:11px;height:11px;margin:0 1px}
 .trow{display:flex;align-items:center;gap:8px;margin:4px 0}
@@ -236,7 +310,7 @@ export function renderHtml(s: Stats): string {
 <style>${CSS}</style></head><body><main>
 <header><h1>Words &amp; Waffles stats</h1><p>Who is eating breakfast, counted without knowing who.</p></header>
 <div class="plates">${stat(c.day.total, 'players today')}${stat(c.week.total, 'this week')}${stat(c.month.total, 'this month')}${stat(s.installs, 'installs')}</div>
-<section class="plate"><h2>A year of breakfasts</h2>${heatmap(s.year)}</section>
+<section class="plate"><h2>${HEADINGS[s.span]}</h2>${heatmap(s.span, s.grid, s.today)}</section>
 <section class="plate"><h2>Today's word</h2>${triesBars(s.tries)}</section>
 <section class="plate"><h2>Where people play</h2>${platformBar('Today', c.day)}${platformBar('This month', c.month)}</section>
 <section class="plate"><h2>What we count</h2>

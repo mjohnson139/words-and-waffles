@@ -173,6 +173,9 @@ describe('stats', () => {
       weeks: unknown[];
       months: unknown[];
       current: { day: { total: number } };
+      span: string;
+      grid: { n: number }[][];
+      year: unknown[];
     };
     expect(s.installs).toBe(1);
     expect(s.days).toHaveLength(30);
@@ -180,8 +183,13 @@ describe('stats', () => {
     expect(s.months).toHaveLength(12);
     expect(s.days[0]).toMatchObject({ total: 2, ios: 1, android: 1, web: 0 });
     expect(s.current.day.total).toBe(2);
+    expect(s.span).toBe('week');
+    expect(s.grid).toHaveLength(1);
+    expect(s.grid[0].some((c) => c.n === 2)).toBe(true);
+    expect(s.year).toHaveLength(53);
     const html = await (await call('/stats')).text();
-    expect(html).toContain(': 2 players"');
+    expect(html).toContain(': 2 players">2</i>');
+    expect(html).toContain('A week of breakfasts');
   });
 
   it('shows today\'s tries distribution and matches the JSON', async () => {

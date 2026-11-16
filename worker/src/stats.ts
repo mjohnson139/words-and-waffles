@@ -182,24 +182,49 @@ const cellTitle = (c: Cell, row: number): string => {
 const stat = (n: number, label: string): string =>
   `<div class="plate"><div class="num">${esc(n)}</div><div class="lbl">${esc(label)}</div></div>`;
 
-const heatmap = (year: Cell[][]): string => {
-  const cols = year
+const WEEKDAYS = 'MTWTFSS';
+const HEADINGS: Record<HeatSpan, string> = {
+  week: 'A week of breakfasts',
+  month: 'A month of breakfasts',
+  year: 'A year of breakfasts',
+};
+
+/** One heat cell; `body` goes inside it (the week view shows the count). */
+const heatCell = (c: Cell, r: number, today: string, body = ''): string =>
+  c.future
+    ? '<i class="cell fut"></i>'
+    : `<i class="cell l${c.level}${c.date === today ? ' today' : ''}" title="${esc(cellTitle(c, r))}">${body}</i>`;
+
+const yearHeat = (grid: Cell[][], today: string): string => {
+  const cols = grid
     .map((col) => {
       // A month starts in this column if its first day falls here.
       const first = col.find((c) => !c.future && c.date.endsWith('-01'));
       const label = first ? MONTHS[Number(first.date.slice(5, 7)) - 1][0] : '';
-      const cells = col
-        .map((c, r) =>
-          c.future
-            ? '<i class="cell fut"></i>'
-            : `<i class="cell l${c.level}" title="${esc(cellTitle(c, r))}"></i>`,
-        )
-        .join('');
+      const cells = col.map((c, r) => heatCell(c, r, today)).join('');
       return `<div class="col"><span class="mo">${esc(label)}</span>${cells}</div>`;
     })
     .join('');
+  return `<div class="scroll"><div class="heat">${cols}</div></div>`;
+};
+
+/** Week columns laid out row by row, a weekday letter starting each row. */
+const monthHeat = (grid: Cell[][], today: string): string => {
+  const rows = [...WEEKDAYS]
+    .map((d, r) => `<span class="wd">${d}</span>${grid.map((col) => heatCell(col[r], r, today)).join('')}`)
+    .join('');
+  return `<div class="month" style="grid-template-columns:auto repeat(${grid.length},1fr)">${rows}</div>`;
+};
+
+const weekHeat = ([col]: Cell[][], today: string): string =>
+  `<div class="week">${col
+    .map((c, r) => `<div><span class="wd">${WEEKDAYS[r]}</span>${heatCell(c, r, today, c.future ? '' : esc(c.n))}</div>`)
+    .join('')}</div>`;
+
+const heatmap = (span: HeatSpan, grid: Cell[][], today: string): string => {
+  const body = { week: weekHeat, month: monthHeat, year: yearHeat }[span](grid, today);
   const legend = [0, 1, 2, 3, 4].map((l) => `<i class="cell l${l}"></i>`).join('');
-  return `<div class="scroll"><div class="heat">${cols}</div></div><div class="legend">Less ${legend} More</div>`;
+  return `${body}<div class="legend">Less ${legend} More</div>`;
 };
 
 const triesBars = (t: Tries): string => {
@@ -230,8 +255,8 @@ const platformBar = (title: string, r: Row): string => {
 };
 
 const CSS = `
-:root{--table:#e6edf8;--check:rgba(62,104,178,.09);--ink:#2b1a10;--muted:#6c5a4f;--plate:#fff;--line:#d3dbea;--waffle:#e2a23e;--syrup:#8a4513;--berry:#3d4fb3;--hit:#3c9a57;--onBerry:#fff;--l1:#f7e6bb;--l2:#ffe37a;--l3:#e2a23e;--l4:#8a4513}
-@media (prefers-color-scheme:dark){:root{--table:#171b30;--check:rgba(255,255,255,.035);--ink:#f7eddb;--muted:#b5ab9b;--plate:#232946;--line:#363e63;--syrup:#eab56c;--berry:#9aa8ff;--hit:#48a864;--onBerry:#141831;--l1:#4a4460;--l2:#8a6d2c;--l3:#d69a3c;--l4:#ffe37a}}
+:root{--on3:var(--ink);--on4:#fff;--table:#e6edf8;--check:rgba(62,104,178,.09);--ink:#2b1a10;--muted:#6c5a4f;--plate:#fff;--line:#d3dbea;--waffle:#e2a23e;--syrup:#8a4513;--berry:#3d4fb3;--hit:#3c9a57;--onBerry:#fff;--l1:#f7e6bb;--l2:#ffe37a;--l3:#e2a23e;--l4:#8a4513}
+@media (prefers-color-scheme:dark){:root{--on3:#2b1a10;--on4:#2b1a10;--table:#171b30;--check:rgba(255,255,255,.035);--ink:#f7eddb;--muted:#b5ab9b;--plate:#232946;--line:#363e63;--syrup:#eab56c;--berry:#9aa8ff;--hit:#48a864;--onBerry:#141831;--l1:#4a4460;--l2:#8a6d2c;--l3:#d69a3c;--l4:#ffe37a}}
 *{box-sizing:border-box}
 body{margin:0;padding:16px;color:var(--ink);font:16px/1.5 system-ui,sans-serif;background-color:var(--table);background-image:repeating-linear-gradient(0deg,var(--check) 0 22px,transparent 22px 44px),repeating-linear-gradient(90deg,var(--check) 0 22px,transparent 22px 44px)}
 main{max-width:680px;margin:0 auto}
@@ -252,6 +277,14 @@ header p{margin:0 0 16px;color:var(--muted)}
 .cell{display:block;width:100%;aspect-ratio:1;border-radius:2px;background:var(--line)}
 .cell.l1{background:var(--l1)}.cell.l2{background:var(--l2)}.cell.l3{background:var(--l3)}.cell.l4{background:var(--l4)}
 .cell.fut{background:none}
+.month{display:grid;gap:4px;align-items:center;max-width:360px}
+.month .cell{border-radius:4px}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;max-width:440px;text-align:center}
+.wd{font-size:.75rem;color:var(--muted);font-weight:700}
+.week .cell{display:flex;align-items:center;justify-content:center;border-radius:10px;margin-top:2px;font-weight:800;font-size:1.05rem;font-style:normal;color:var(--ink)}
+.week .cell.l3{color:var(--on3)}.week .cell.l4{color:var(--on4)}
+.month .cell.fut,.week .cell.fut{border:2px dashed var(--line)}
+.month .today,.week .today{outline:2px solid var(--berry);outline-offset:2px}
 .legend{display:flex;gap:3px;align-items:center;justify-content:flex-end;font-size:.8rem;color:var(--muted);margin-top:6px}
 .legend .cell{display:inline-block;width:11px;height:11px;margin:0 1px}
 .trow{display:flex;align-items:center;gap:8px;margin:4px 0}
@@ -276,7 +309,7 @@ export function renderHtml(s: Stats): string {
 <style>${CSS}</style></head><body><main>
 <header><h1>Words &amp; Waffles stats</h1><p>Who is eating breakfast, counted without knowing who.</p></header>
 <div class="plates">${stat(c.day.total, 'players today')}${stat(c.week.total, 'this week')}${stat(c.month.total, 'this month')}${stat(s.installs, 'installs')}</div>
-<section class="plate"><h2>A year of breakfasts</h2>${heatmap(s.year)}</section>
+<section class="plate"><h2>${HEADINGS[s.span]}</h2>${heatmap(s.span, s.grid, s.today)}</section>
 <section class="plate"><h2>Today's word</h2>${triesBars(s.tries)}</section>
 <section class="plate"><h2>Where people play</h2>${platformBar('Today', c.day)}${platformBar('This month', c.month)}</section>
 <section class="plate"><h2>What we count</h2>

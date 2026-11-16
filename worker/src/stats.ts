@@ -1,4 +1,4 @@
-import { addDays, dnum, isoWeek, monthOf } from '../../app/src/game/dates';
+import { addDays, dnum, isDateString, isoWeek, monthOf } from '../../app/src/game/dates';
 import { errorResponse } from './http';
 
 const PLATFORMS = ['ios', 'android', 'web'] as const;
@@ -39,7 +39,7 @@ export interface Stats {
   weeks: Row[];
   months: Row[];
   current: { day: Row; week: Row; month: Row };
-  year: Cell[][];
+  year: Cell[][]; // kept for /stats.json readers; `grid` is what /stats draws
   span: HeatSpan;
   grid: Cell[][];
   tries: Tries;
@@ -55,9 +55,9 @@ const mondayIndex = (d: string): number => (dnum(d) + 3) % 7; // 1970-01-01 was 
 const mondayOf = (d: string): string => addDays(d, -mondayIndex(d));
 
 /** Days of history (today - firstDay + 1): under 14 -> week, under 70 -> month, else year. */
-export function heatSpan(today: string, firstDay: string | null): HeatSpan {
-  if (!firstDay || firstDay > today) return 'week';
-  const days = dnum(today) - dnum(firstDay) + 1;
+export function heatSpan(today: string, first: string | null): HeatSpan {
+  if (!first || first > today) return 'week';
+  const days = dnum(today) - dnum(first) + 1;
   return days < 14 ? 'week' : days < 70 ? 'month' : 'year';
 }
 
@@ -65,8 +65,8 @@ export function heatSpan(today: string, firstDay: string | null): HeatSpan {
 export function firstDay(counts: Iterable<[string, number]>): string | null {
   let first: string | null = null;
   for (const [key, n] of counts) {
-    const m = /^day:(\d{4}-\d{2}-\d{2})$/.exec(key);
-    if (m && n > 0 && (first === null || m[1] < first)) first = m[1];
+    const date = key.slice(4);
+    if (key.startsWith('day:') && isDateString(date) && n > 0 && (first === null || date < first)) first = date;
   }
   return first;
 }
@@ -93,6 +93,7 @@ export function heatGrid(today: string, span: HeatSpan, get: (key: string) => nu
   if (span === 'week') return buildGrid(today, mondayOf(today), 1, get);
   if (span === 'year') return buildGrid(today, addDays(mondayOf(today), -52 * 7), 53, get);
   const monthStart = `${monthOf(today)}-01`;
+  // 31 days after the 1st is always in the next month; the day before its 1st ends this one.
   const monthEnd = addDays(`${monthOf(addDays(monthStart, 31))}-01`, -1);
   const first = mondayOf(monthStart);
   return buildGrid(today, first, (dnum(mondayOf(monthEnd)) - dnum(first)) / 7 + 1, get);
@@ -218,7 +219,7 @@ const monthHeat = (grid: Cell[][], today: string): string => {
 
 const weekHeat = ([col]: Cell[][], today: string): string =>
   `<div class="week">${col
-    .map((c, r) => `<div><span class="wd">${WEEKDAYS[r]}</span>${heatCell(c, r, today, c.future ? '' : esc(c.n))}</div>`)
+    .map((c, r) => `<div><span class="wd">${WEEKDAYS[r]}</span>${heatCell(c, r, today, esc(c.n))}</div>`)
     .join('')}</div>`;
 
 const heatmap = (span: HeatSpan, grid: Cell[][], today: string): string => {

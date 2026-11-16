@@ -40,6 +40,8 @@ export interface Stats {
   months: Row[];
   current: { day: Row; week: Row; month: Row };
   year: Cell[][];
+  span: HeatSpan;
+  grid: Cell[][];
   tries: Tries;
 }
 
@@ -47,17 +49,37 @@ export interface Stats {
 export const heatLevel = (n: number, max: number): Cell['level'] =>
   n <= 0 || max <= 0 ? 0 : (Math.min(4, Math.max(1, Math.ceil((4 * n) / max))) as Cell['level']);
 
-/** 53 ISO-week columns (Monday first); the last holds `today`, later cells are `future`. */
-export function yearGrid(today: string, get: (key: string) => number): Cell[][] {
-  const weekday = (dnum(today) + 3) % 7; // 1970-01-01 was a Thursday; Monday is 0
-  const first = addDays(today, -weekday - 52 * 7);
-  const cells = Array.from({ length: 53 * 7 }, (_, i) => {
+export type HeatSpan = 'week' | 'month' | 'year';
+
+const mondayIndex = (d: string): number => (dnum(d) + 3) % 7; // 1970-01-01 was a Thursday; Monday is 0
+const mondayOf = (d: string): string => addDays(d, -mondayIndex(d));
+
+/** Days of history (today - firstDay + 1): under 14 -> week, under 70 -> month, else year. */
+export function heatSpan(today: string, firstDay: string | null): HeatSpan {
+  if (!firstDay || firstDay > today) return 'week';
+  const days = dnum(today) - dnum(firstDay) + 1;
+  return days < 14 ? 'week' : days < 70 ? 'month' : 'year';
+}
+
+/** Earliest date with a `day:<date>` count above 0; platform-suffixed keys don't count. */
+export function firstDay(counts: Iterable<[string, number]>): string | null {
+  let first: string | null = null;
+  for (const [key, n] of counts) {
+    const m = /^day:(\d{4}-\d{2}-\d{2})$/.exec(key);
+    if (m && n > 0 && (first === null || m[1] < first)) first = m[1];
+  }
+  return first;
+}
+
+/** Monday-first columns of 7 cells from `first`; cells after `today` are `future`. */
+function buildGrid(today: string, first: string, columns: number, get: (key: string) => number): Cell[][] {
+  const cells = Array.from({ length: columns * 7 }, (_, i) => {
     const date = addDays(first, i);
     const future = date > today;
     return { date, future, n: future ? 0 : get(`day:${date}`) };
   });
   const max = Math.max(0, ...cells.map((c) => c.n));
-  return Array.from({ length: 53 }, (_, c) =>
+  return Array.from({ length: columns }, (_, c) =>
     cells.slice(c * 7, c * 7 + 7).map(({ date, n, future }): Cell => {
       const cell: Cell = { date, n, level: heatLevel(n, max) };
       if (future) cell.future = true;
@@ -65,6 +87,19 @@ export function yearGrid(today: string, get: (key: string) => number): Cell[][] 
     }),
   );
 }
+
+/** week: the ISO week holding today; month: the ISO weeks covering today's month; year: 53 weeks ending with today's. */
+export function heatGrid(today: string, span: HeatSpan, get: (key: string) => number): Cell[][] {
+  if (span === 'week') return buildGrid(today, mondayOf(today), 1, get);
+  if (span === 'year') return buildGrid(today, addDays(mondayOf(today), -52 * 7), 53, get);
+  const monthStart = `${monthOf(today)}-01`;
+  const monthEnd = addDays(`${monthOf(addDays(monthStart, 31))}-01`, -1);
+  const first = mondayOf(monthStart);
+  return buildGrid(today, first, (dnum(mondayOf(monthEnd)) - dnum(first)) / 7 + 1, get);
+}
+
+/** 53 ISO-week columns (Monday first); the last holds `today`, later cells are `future`. */
+export const yearGrid = (today: string, get: (key: string) => number): Cell[][] => heatGrid(today, 'year', get);
 
 export function triesSummary(date: string, get: (key: string) => number): Tries {
   const counts = Object.fromEntries(TRY_KEYS.map((g) => [g, get(`tries:${date}:${g}`)])) as Tries['counts'];
@@ -105,6 +140,9 @@ export async function loadStats(db: D1Database, now: number): Promise<Stats> {
     if (!monthSet.includes(m)) monthSet.push(m);
   }
 
+  const year = yearGrid(today, get);
+  const span = heatSpan(today, firstDay(counts));
+
   return {
     installs: get('installs'),
     today,
@@ -116,7 +154,9 @@ export async function loadStats(db: D1Database, now: number): Promise<Stats> {
       week: row(isoWeek(today), `week:${isoWeek(today)}`),
       month: row(monthOf(today), `month:${monthOf(today)}`),
     },
-    year: yearGrid(today, get),
+    year,
+    span,
+    grid: span === 'year' ? year : heatGrid(today, span, get),
     tries: currentTries(today, get),
   };
 }

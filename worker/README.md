@@ -5,7 +5,7 @@ Cloudflare Worker for Words & Waffles. It serves:
 - `GET /v1/word?date=YYYY-MM-DD`: the day's word as salted letter hashes (obfuscation, not secrecy).
 - `POST /v1/ping`: anonymous counters in D1. No identifier, IP or user agent is stored.
 - `POST /v1/result`: `{d, g}` when a daily game ends; adds one to `tries:<d>:<g>`. Same rate limit, same `X-Dry-Run: 1`.
-- `GET /stats` and `GET /stats.json`: the public counts and the honest limits.
+- `GET /stats` and `GET /stats.json`: the public counts and the honest limits. The JSON carries `installs`, `today`, `days` (30), `weeks` (12), `months` (12), `current`, `tries`, `year` (53 Monday-first week columns of 7 `{date, n, level, future?}` cells) and the heatmap `/stats` shows: `span` (`'week'`, `'month'` or `'year'`, from how far back the `day:` counters go: under 14 days, under 70 days, longer) and `grid` (that span's columns, same cell shape; levels 0-4 scale against the busiest day in the grid). New fields are only ever added.
 
 ## Local dev
 

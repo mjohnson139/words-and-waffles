@@ -1,7 +1,7 @@
 ---
 title: "fix: Count and show stats by local day, not UTC"
 type: fix
-status: active
+status: completed
 date: 2026-11-17
 ---
 

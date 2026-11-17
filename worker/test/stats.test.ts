@@ -114,7 +114,7 @@ describe('renderHtml zone copy', () => {
     const html = renderHtml(await base('America/Denver'));
     expect(html).toContain('Today is Mon, Nov 16, Mountain Time. Each player counts on their own calendar day.');
     // The mandated "Honest limits" bullet about older counts is the only place UTC is named.
-    expect(html.replace(/<li>Counts from before[^<]*<\/li>/, '')).not.toContain('UTC');
+    expect(html).not.toContain('UTC');
     expect(html).toContain("<h2>Today's word</h2>");
     expect(html).toContain('players today');
   });

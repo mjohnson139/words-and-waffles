@@ -353,7 +353,7 @@ export function renderHtml(s: Stats): string {
 <li>Counts are per device or browser, not per person.</li>
 <li>A cleared browser counts again as a new install.</li>
 <li>Your time zone is a guess from your connection, so a VPN can show another place's day.</li>
-<li>Counts from before Nov 17, 2026 were filed by UTC date, so those days can be off by one.</li>
+<li>Counts from before Nov 17, 2026 used the server's clock, not each player's, so those days can be off by one.</li>
 <li>Anyone can send fake counts, so treat the numbers as rough.</li>
 </ul></section>
 <p><a href="${PRIVACY_URL}">Read the full privacy notes</a></p>

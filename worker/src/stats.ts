@@ -344,7 +344,7 @@ export function renderHtml(s: Stats): string {
 <section class="plate"><h2>What we count</h2>
 <p>Two things, nothing else:</p>
 <ul>
-<li>At most one tiny ping a day: whether it is the first open of the day, week and month, whether it is a first install, and whether it runs on iOS, Android or the web.</li>
+<li>At most one tiny ping a day: whether it is the first open of the day, week and month, whether it is a first install, whether it runs on iOS, Android or the web, and the player's own date, so they count on their own day.</li>
 <li>When you finish the daily word: the date and how many tries it took (or that it got away).</li>
 </ul>
 <p>The server only adds one to a few counters. No identifier is sent or stored: no cookies, no request logs, no IP address and no user agent. Both can be turned off in the app's Stats tab.</p></section>

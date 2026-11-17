@@ -90,12 +90,12 @@ Goal: know roughly how many people play, storing nothing about any of them.
 
 ```
 POST {PING_ENDPOINT}
-{ "d": true, "w": true, "m": false, "n": false, "p": "ios" }
+{ "d": true, "w": true, "m": false, "n": false, "p": "ios", "t": "2026-11-12" }
 ```
 
 - The app sends **at most one ping per local day**, on first open that day.
-- Flags are computed on the device from locally stored dates: `d` first open today, `w` first open this ISO week, `m` first open this month, `n` first open ever. `p` is `ios` / `android` / `web`.
-- The Worker only increments counters in D1: `UPDATE counts SET n = n + 1 WHERE key = ?` for keys like `day:2026-11-12`, `week:2026-W46`, `month:2026-11`, `installs`, `day:2026-11-12:ios`.
+- Flags are computed on the device from locally stored dates: `d` first open today, `w` first open this ISO week, `m` first open this month, `n` first open ever. `p` is `ios` / `android` / `web`. `t` is the device's local date, so a player is counted on their own day.
+- The Worker only increments counters in D1: `UPDATE counts SET n = n + 1 WHERE key = ?` for keys like `day:2026-11-12` (the ping's local date), `week:2026-W46`, `month:2026-11`, `installs`, `day:2026-11-12:ios`.
 - Result: daily, weekly and monthly active players and total installs, with **no identifier ever sent or stored**. No cookies, no request logging, no IP stored, no user-agent stored.
 - Limits to state honestly on the stats page: counts are per device/browser, a cleared browser counts again, and anyone can send fake pings (add a light per-IP rate limit in memory only, never persisted).
 - `GET /stats` renders the counters as a plain public page. Add a one-paragraph "What we count" note in the app's Stats tab with a switch to turn the ping off.

@@ -115,7 +115,7 @@ export function StatsFooter({ games, restore: restoreGames, settings, update }: 
         <Text style={{ fontWeight: '800', color: t.ink, fontSize: 15, marginBottom: 6 }}>What we count</Text>
         <Note>
           Once a day the app tells our server that someone opened it today, whether it is the first open this week,
-          this month or ever, and which platform it runs on. When you finish the daily word it also sends the date and
+          this month or ever, which platform it runs on, and your date, so you count on your own day. When you finish the daily word it also sends the date and
           how many tries it took (or that it got away). No name, no ID, nothing else about your games. The counts are public.
         </Note>
         <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>

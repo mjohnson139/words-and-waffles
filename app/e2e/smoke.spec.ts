@@ -134,8 +134,9 @@ test('request audit: one word request, one ping, respects the setting', async ({
   await page.waitForTimeout(500);
   expect(ctl.wordRequests).toHaveLength(1);
   expect(ctl.pings).toHaveLength(1);
-  expect(Object.keys(ctl.pings[0]).sort()).toEqual(['d', 'm', 'n', 'p', 'w']);
+  expect(Object.keys(ctl.pings[0]).sort()).toEqual(['d', 'm', 'n', 'p', 't', 'w']);
   expect(ctl.pings[0].p).toBe('web');
+  expect(ctl.pings[0].t).toBe(DAY);
 
   await page.reload();
   await expect(button(page, 'Enter')).toBeVisible();

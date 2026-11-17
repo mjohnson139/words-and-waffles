@@ -2,19 +2,19 @@ import { afterPing, cleanPingState, pingBody } from '../ping';
 
 describe('pingBody', () => {
   it('first ever flags everything', () => {
-    expect(pingBody({}, '2026-11-13', 'ios')).toEqual({ d: true, w: true, m: true, n: true, p: 'ios' });
+    expect(pingBody({}, '2026-11-13', 'ios')).toEqual({ d: true, w: true, m: true, n: true, p: 'ios', t: '2026-11-13' });
   });
   it('is null after pinging today', () => {
     expect(pingBody(afterPing('2026-11-13'), '2026-11-13', 'web')).toBeNull();
   });
   it('new day, same week and month', () => {
     expect(pingBody(afterPing('2026-11-12'), '2026-11-13', 'android')).toEqual({
-      d: true, w: false, m: false, n: false, p: 'android',
+      d: true, w: false, m: false, n: false, p: 'android', t: '2026-11-13',
     });
   });
   it('new week, same month', () => {
     const b = pingBody(afterPing('2026-11-13'), '2026-11-16', 'web');
-    expect(b).toMatchObject({ d: true, w: true, m: false, n: false });
+    expect(b).toMatchObject({ d: true, w: true, m: false, n: false, t: '2026-11-16' });
   });
   it('2026-12-31 to 2027-01-04 is a new week and month', () => {
     expect(pingBody(afterPing('2026-12-31'), '2027-01-04', 'web')).toMatchObject({ w: true, m: true });

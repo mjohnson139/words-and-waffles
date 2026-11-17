@@ -17,7 +17,7 @@ const base = { endpoint: 'https://x.test/v1/ping', enabled: true, platform: 'ios
 describe('maybePing', () => {
   beforeEach(() => store.clear());
 
-  it('first ever ping sends all flags and exactly 5 keys', async () => {
+  it('first ever ping sends all flags, the local date and exactly 6 keys', async () => {
     const f = mkFetch(true);
     expect(await maybePing({ ...base, fetchImpl: f as unknown as typeof fetch })).toBe('sent');
     const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
@@ -26,8 +26,8 @@ describe('maybePing', () => {
     expect(init.credentials).toBe('omit');
     expect(init.headers).toEqual({ 'Content-Type': 'application/json' });
     const body = JSON.parse(init.body as string);
-    expect(body).toEqual({ d: true, w: true, m: true, n: true, p: 'ios' });
-    expect(Object.keys(body)).toHaveLength(5);
+    expect(body).toEqual({ d: true, w: true, m: true, n: true, p: 'ios', t: '2026-11-13' });
+    expect(Object.keys(body)).toHaveLength(6);
   });
 
   it('second ping the same day is skipped without a request', async () => {

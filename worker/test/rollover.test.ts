@@ -84,7 +84,7 @@ describe('ping counted on the local date', () => {
   });
 
   it('refuses a bad date with 400 and counts nothing', async () => {
-    const bad = ['2026-11-15', '2026-11-19', '2026-02-30', '2026-11-1', '', 20261116, null];
+    const bad = ['2026-11-15', '2026-11-19', '2026-02-30', '2026-11-1', '2026-11-16\n', ' 2026-11-16', '', 20261116, null, ['2026-11-16']];
     for (const [i, t] of bad.entries()) {
       expect((await ping(now, { ...good, t }, `8.8.8.${i}`)).status, String(t)).toBe(400);
     }

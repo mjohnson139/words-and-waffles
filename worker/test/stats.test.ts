@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { addDays, dnum } from '../../app/src/game/dates';
-import { currentTries, firstDay, heatGrid, heatLevel, heatSpan, triesSummary, yearGrid } from '../src/stats';
+import { currentTries, firstDay, heatGrid, heatLevel, heatSpan, triesHeading, triesSummary, yearGrid } from '../src/stats';
 
 describe('heatLevel', () => {
   it('is 0 for nothing and scales 1..4 against the max', () => {
@@ -69,6 +69,16 @@ describe('currentTries', () => {
   });
   it('falls back to the UTC date with no results at all', () => {
     expect(currentTries('2026-11-13', at({}))).toMatchObject({ date: '2026-11-13', played: 0 });
+  });
+});
+
+describe('triesHeading', () => {
+  const today = '2026-11-17';
+  const at = (date: string) => triesSummary(date, () => 0);
+  it('names the day the panel shows, relative to the UTC date', () => {
+    expect(triesHeading(at('2026-11-16'), today)).toBe("Yesterday's word");
+    expect(triesHeading(at(today), today)).toBe("Today's word");
+    expect(triesHeading(at('2026-11-18'), today)).toBe("Tomorrow's word");
   });
 });
 

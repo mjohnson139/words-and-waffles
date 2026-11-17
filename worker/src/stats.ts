@@ -228,6 +228,10 @@ const heatmap = (span: HeatSpan, grid: Cell[][], today: string): string => {
   return `${body}<div class="legend">Less ${legend} More</div>`;
 };
 
+/** The tries panel's heading names the puzzle it shows, which near UTC midnight is not the UTC date's. */
+export const triesHeading = (t: Tries, today: string): string =>
+  t.date < today ? "Yesterday's word" : t.date > today ? "Tomorrow's word" : "Today's word";
+
 const triesBars = (t: Tries): string => {
   const max = Math.max(...TRY_KEYS.map((g) => t.counts[g]));
   const rows = TRY_KEYS.map((g) => {
@@ -309,9 +313,9 @@ export function renderHtml(s: Stats): string {
 <title>Words &amp; Waffles stats</title>
 <style>${CSS}</style></head><body><main>
 <header><h1>Words &amp; Waffles stats</h1><p>Who is eating breakfast, counted without knowing who.</p></header>
-<div class="plates">${stat(c.day.total, 'players today')}${stat(c.week.total, 'this week')}${stat(c.month.total, 'this month')}${stat(s.installs, 'installs')}</div>
+<div class="plates">${stat(c.day.total, 'players today (UTC)')}${stat(c.week.total, 'this week')}${stat(c.month.total, 'this month')}${stat(s.installs, 'installs')}</div>
 <section class="plate"><h2>${HEADINGS[s.span]}</h2>${heatmap(s.span, s.grid, s.today)}</section>
-<section class="plate"><h2>Today's word</h2>${triesBars(s.tries)}</section>
+<section class="plate"><h2>${esc(triesHeading(s.tries, s.today))}</h2>${triesBars(s.tries)}</section>
 <section class="plate"><h2>Where people play</h2>${platformBar('Today', c.day)}${platformBar('This month', c.month)}</section>
 <section class="plate"><h2>What we count</h2>
 <p>Two things, nothing else:</p>

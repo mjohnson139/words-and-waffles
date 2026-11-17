@@ -6,7 +6,8 @@ import { addDays, isDateString } from '../../app/src/game/dates';
  * UTC+14). The ping and the result both use this rule.
  */
 export function isLocalDate(d: unknown, utcToday: string): d is string {
-  // isDateString checks the shape only; the round trip rejects 2026-02-30.
-  if (!isDateString(d) || addDays(d, 0) !== d) return false;
-  return d >= addDays(utcToday, -1) && d <= addDays(utcToday, 1);
+  return isCalendarDate(d) && d >= addDays(utcToday, -1) && d <= addDays(utcToday, 1);
 }
+
+/** A real `YYYY-MM-DD`; isDateString checks the shape only, the round trip rejects 2026-02-30. */
+export const isCalendarDate = (d: unknown): d is string => isDateString(d) && addDays(d, 0) === d;

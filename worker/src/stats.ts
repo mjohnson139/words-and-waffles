@@ -347,13 +347,13 @@ export function renderHtml(s: Stats): string {
 <li>At most one tiny ping a day: whether it is the first open of the day, week and month, whether it is a first install, whether it runs on iOS, Android or the web, and the player's own date, so they count on their own day.</li>
 <li>When you finish the daily word: the date and how many tries it took (or that it got away).</li>
 </ul>
-<p>The server only adds one to a few counters. No identifier is sent or stored: no cookies, no request logs, no IP address and no user agent. Both can be turned off in the app's Stats tab.</p></section>
+<p>The server only adds one to a few counters. No identifier is sent or stored: no cookies, no request logs, no IP address and no user agent. This page reads your time zone from your connection to pick "today" and does not keep it. Both counts can be turned off in the app's Stats tab.</p></section>
 <section class="plate"><h2>Honest limits</h2>
 <ul>
 <li>Counts are per device or browser, not per person.</li>
 <li>A cleared browser counts again as a new install.</li>
 <li>Your time zone is a guess from your connection, so a VPN can show another place's day.</li>
-<li>Counts from before Nov 17, 2026 used the server's clock, not each player's, so those days can be off by one.</li>
+<li>Counts from before this change, and from apps not yet updated, use the server's clock instead of the player's, so those days can be off by one.</li>
 <li>Anyone can send fake counts, so treat the numbers as rough.</li>
 </ul></section>
 <p><a href="${PRIVACY_URL}">Read the full privacy notes</a></p>

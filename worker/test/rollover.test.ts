@@ -83,8 +83,14 @@ describe('ping counted on the local date', () => {
     expect(await keysLike('day:')).toEqual(['day:2026-11-17', 'day:2026-11-17:ios']);
   });
 
-  it('refuses a bad date with 400 and counts nothing', async () => {
-    const bad = ['2026-11-15', '2026-11-19', '2026-02-30', '2026-11-1', '2026-11-16\n', ' 2026-11-16', '', 20261116, null, ['2026-11-16']];
+  it('counts a real date more than a day off (a wrong device clock) under the UTC date', async () => {
+    expect((await ping(now, { ...dayOnly, t: '2026-11-10' }, '8.7.7.1')).status).toBe(204);
+    expect((await ping(now, { ...dayOnly, t: '2026-11-19' }, '8.7.7.2')).status).toBe(204);
+    expect(await rows()).toEqual({ 'day:2026-11-17': 2, 'day:2026-11-17:ios': 2 });
+  });
+
+  it('refuses a malformed date with 400 and counts nothing', async () => {
+    const bad = ['2026-02-30', '2026-11-1', '2026-11-16\n', ' 2026-11-16', '', 20261116, null, ['2026-11-16']];
     for (const [i, t] of bad.entries()) {
       expect((await ping(now, { ...good, t }, `8.8.8.${i}`)).status, String(t)).toBe(400);
     }
@@ -105,7 +111,7 @@ describe('ping counted on the local date', () => {
         now,
       );
     expect((await dry('2026-11-16')).status).toBe(204);
-    expect((await dry('2026-11-10')).status).toBe(400);
+    expect((await dry('2026-13-01')).status).toBe(400);
     expect(await rows()).toEqual({});
   });
 });

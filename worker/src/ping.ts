@@ -1,6 +1,6 @@
 import { isoWeek, monthOf } from '../../app/src/game/dates';
 import { errorResponse } from './http';
-import { isLocalDate } from './localDate';
+import { isCalendarDate, isLocalDate } from './localDate';
 import { MAX_PER_HOUR, overLimit, resetRateLimit } from './rateLimit';
 
 const PLATFORMS = ['ios', 'android', 'web'];
@@ -35,8 +35,12 @@ export function parsePing(text: string, utcToday: string): Ping | null {
   if (!KEYS.every((k) => keys.includes(k))) return null;
   if (![o.d, o.w, o.m, o.n].every((v) => typeof v === 'boolean')) return null;
   if (typeof o.p !== 'string' || !PLATFORMS.includes(o.p)) return null;
-  if (withDate && !isLocalDate(o.t, utcToday)) return null;
-  return o as unknown as Ping;
+  if (withDate && !isCalendarDate(o.t)) return null;
+  const ping = o as unknown as Ping;
+  // A device whose clock is more than a day off is counted under the UTC date,
+  // as before `t` existed, rather than refused on every launch.
+  if (withDate && !isLocalDate(o.t, utcToday)) delete ping.t;
+  return ping;
 }
 
 /** Counter keys for a ping, filed under `date` (the player's local date, or UTC when the ping has none). */

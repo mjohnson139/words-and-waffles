@@ -70,7 +70,7 @@ The limits, stated honestly:
 - Counts are per device or browser, not per person.
 - Clearing a browser counts it again.
 - The stats page shows the day for the viewer's time zone. That zone is Cloudflare's guess from the connection, so a VPN can show another place's day.
-- Counts from before November 17, 2026 were filed by the server's clock (UTC), not each player's, so those days can be off by one.
+- Counts from before this change, from app versions that do not send the date yet, and from devices whose clock is more than a day off are filed by the server's clock (UTC), not the player's, so those days can be off by one.
 - A result can be counted twice: if the answer is slow to come back, the app tries again on the next launch, and restoring a backup on a new device sends today's result again.
 - Anyone can send fake counts.
 

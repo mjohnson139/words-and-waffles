@@ -155,18 +155,32 @@ describe('stats', () => {
     const res = await call('/stats');
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toContain('text/html');
-    expect(res.headers.get('Cache-Control')).toBe('public, max-age=300');
+    expect(res.headers.get('Cache-Control')).toBe('private, max-age=300');
     const html = await res.text();
     expect(html).toContain('What we count');
     expect(html).toContain('https://github.com/mjohnson139/words-and-waffles/blob/main/PRIVACY.md');
     expect(html).not.toContain('<script');
   });
 
+  it('follows the viewer time zone from the request', async () => {
+    const get = async (init?: object) =>
+      (await (await worker.fetch(new Request('https://w.test/stats.json', init as RequestInit), env)).json()) as {
+        today: string;
+        zone: string;
+      };
+    const nz = await get({ cf: { timezone: 'Pacific/Auckland' } });
+    expect(nz.zone).toBe('Pacific/Auckland');
+    expect(nz.today).toBe(new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Auckland' }).format(Date.now()));
+    const none = await get();
+    expect(none.zone).toBe('UTC');
+    expect(none.today).toBe(new Date().toISOString().slice(0, 10));
+  });
+
   it('renders data and matches the JSON', async () => {
     await ping(good);
     await ping({ d: true, w: false, m: false, n: false, p: 'android' }, '2.2.2.2');
     const res = await call('/stats.json');
-    expect(res.headers.get('Cache-Control')).toBe('public, max-age=300');
+    expect(res.headers.get('Cache-Control')).toBe('private, max-age=300');
     const s = (await res.json()) as {
       installs: number;
       days: { label: string; total: number; ios: number; android: number; web: number }[];

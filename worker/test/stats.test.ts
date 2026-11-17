@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { addDays, dnum } from '../../app/src/game/dates';
-import { currentTries, firstDay, heatGrid, heatLevel, heatSpan, triesHeading, triesSummary, yearGrid } from '../src/stats';
+import { env } from 'cloudflare:test';
+import { firstDay, heatGrid, heatLevel, heatSpan, loadStats, renderHtml, triesSummary, viewerDay, yearGrid } from '../src/stats';
+import type { Stats } from '../src/stats';
 
 describe('heatLevel', () => {
   it('is 0 for nothing and scales 1..4 against the max', () => {
@@ -56,29 +58,76 @@ describe('triesSummary', () => {
   });
 });
 
-describe('currentTries', () => {
-  const at = (data: Record<string, number>) => (k: string) => data[k] ?? 0;
-  it('shows the UTC date when it has the most results', () => {
-    expect(currentTries('2026-11-13', at({ 'tries:2026-11-13:3': 2, 'tries:2026-11-12:3': 1 })).date).toBe('2026-11-13');
+describe('viewerDay', () => {
+  const at = Date.parse('2026-11-17T02:51:00Z');
+  it("gives the viewer's local date and a plain zone name", () => {
+    expect(viewerDay(at, 'America/Denver')).toEqual({
+      today: '2026-11-16',
+      zone: 'America/Denver',
+      label: 'Mountain Time',
+      fallback: false,
+    });
+    expect(viewerDay(at, 'Pacific/Auckland')).toMatchObject({ today: '2026-11-17', fallback: false });
+    expect(viewerDay(at, 'UTC')).toMatchObject({ today: '2026-11-17', fallback: false });
   });
-  it("shows yesterday's word while most players are still on it", () => {
-    expect(currentTries('2026-11-13', at({ 'tries:2026-11-13:3': 1, 'tries:2026-11-12:x': 5 })).date).toBe('2026-11-12');
-  });
-  it('shows tomorrow when only players east of UTC have finished', () => {
-    expect(currentTries('2026-12-31', at({ 'tries:2027-01-01:1': 1 })).date).toBe('2027-01-01');
-  });
-  it('falls back to the UTC date with no results at all', () => {
-    expect(currentTries('2026-11-13', at({}))).toMatchObject({ date: '2026-11-13', played: 0 });
+  it.each([['Mars/Olympus'], [''], [undefined], [42], ['<b>']])('falls back to UTC for %j', (zone) => {
+    expect(viewerDay(at, zone)).toEqual({ today: '2026-11-17', zone: 'UTC', label: 'UTC', fallback: true });
   });
 });
 
-describe('triesHeading', () => {
-  const today = '2026-11-17';
-  const at = (date: string) => triesSummary(date, () => 0);
-  it('names the day the panel shows, relative to the UTC date', () => {
-    expect(triesHeading(at('2026-11-16'), today)).toBe("Yesterday's word");
-    expect(triesHeading(at(today), today)).toBe("Today's word");
-    expect(triesHeading(at('2026-11-18'), today)).toBe("Tomorrow's word");
+describe('loadStats for a viewer', () => {
+  const at = Date.parse('2026-11-17T02:51:00Z');
+  const seed = (data: Record<string, number>) =>
+    env.DB.batch(
+      Object.entries(data).map(([k, n]) => env.DB.prepare('INSERT INTO counts (key, n) VALUES (?, ?)').bind(k, n)),
+    );
+
+  it('uses the viewer day for tiles, tries and the heatmap', async () => {
+    await seed({ 'day:2026-11-16': 11, 'tries:2026-11-16:4': 1, 'tries:2026-11-16:6': 1 });
+    const s = await loadStats(env.DB, at, 'America/Denver');
+    expect(s.current.day.total).toBe(11);
+    expect(s.tries).toMatchObject({ date: '2026-11-16', played: 2 });
+    const cells = s.grid.flat();
+    expect(cells.find((c) => c.date === '2026-11-16')?.future).toBeUndefined();
+    expect(cells.find((c) => c.date === '2026-11-17')?.future).toBe(true);
+    const html = renderHtml(s);
+    expect(html).toContain('class="cell l4 today"');
+  });
+
+  it('shows nothing for the same data from UTC', async () => {
+    await seed({ 'day:2026-11-16': 11, 'tries:2026-11-16:4': 1, 'tries:2026-11-16:6': 1 });
+    const s = await loadStats(env.DB, at, 'UTC');
+    expect(s.current.day.total).toBe(0);
+    expect(s.tries.played).toBe(0);
+  });
+
+  it("tries are today's only", async () => {
+    await seed({ 'tries:2026-11-16:3': 5, 'tries:2026-11-18:3': 5 });
+    expect((await loadStats(env.DB, at, 'UTC')).tries.played).toBe(0);
+  });
+});
+
+describe('renderHtml zone copy', () => {
+  const base = async (zone?: string): Promise<Stats> => loadStats(env.DB, Date.parse('2026-11-17T02:51:00Z'), zone);
+
+  it('names the viewer day and zone, and not UTC', async () => {
+    const html = renderHtml(await base('America/Denver'));
+    expect(html).toContain('Today is Mon, Nov 16, Mountain Time. Each player counts on their own calendar day.');
+    // The mandated "Honest limits" bullet about older counts is the only place UTC is named.
+    expect(html.replace(/<li>Counts from before[^<]*<\/li>/, '')).not.toContain('UTC');
+    expect(html).toContain("<h2>Today's word</h2>");
+    expect(html).toContain('players today');
+  });
+
+  it('says UTC and why when the zone is unknown', async () => {
+    const html = renderHtml(await base());
+    expect(html).toContain('Today is Tue, Nov 17, UTC: we could not tell your time zone.');
+  });
+
+  it('escapes the zone label', async () => {
+    const html = renderHtml({ ...(await base('America/Denver')), zoneLabel: '<x>"' });
+    expect(html).toContain('&#60;x&#62;&#34;');
+    expect(html).not.toContain('<x>');
   });
 });
 

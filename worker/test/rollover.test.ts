@@ -5,8 +5,8 @@ import { loadStats } from '../src/stats';
 import { handleWord, latestAllowed } from '../src/word';
 
 /*
- * Date edges the Worker owns: the counter day is UTC (not the player's local
- * date), ISO weeks straddle the new year while months do not, and the stats
+ * Date edges the Worker owns: a ping is counted on the player's local date
+ * when it sends one and on the UTC date when it does not (older apps), ISO weeks straddle the new year while months do not, and the stats
  * windows are built backwards from the UTC date of the request. Every call
  * here pins `now`, so none of this depends on when the suite runs.
  */
@@ -57,7 +57,66 @@ describe('counterKeys', () => {
   });
 });
 
-describe('ping counters around UTC midnight', () => {
+describe('ping counted on the local date', () => {
+  // 02:00Z on the 17th is still the evening of the 16th in the Americas.
+  const now = at('2026-11-17T02:00:00Z');
+
+  it('files day, week and month under the date the app sent', async () => {
+    expect((await ping(now, { ...good, t: '2026-11-16' })).status).toBe(204);
+    expect(await keysLike('day:')).toEqual(['day:2026-11-16', 'day:2026-11-16:ios']);
+    expect(await keysLike('week:')).toEqual(['week:2026-W47', 'week:2026-W47:ios']);
+    expect(await keysLike('month:')).toEqual(['month:2026-11', 'month:2026-11:ios']);
+  });
+
+  it('takes the month from the local date when UTC is already in the next one', async () => {
+    await ping(at('2026-12-01T03:00:00Z'), { ...good, t: '2026-11-30' });
+    expect(await keysLike('month:')).toEqual(['month:2026-11', 'month:2026-11:ios']);
+  });
+
+  it('accepts a date one day ahead of UTC (players east of UTC)', async () => {
+    expect((await ping(at('2026-11-17T12:00:00Z'), { ...dayOnly, t: '2026-11-18' })).status).toBe(204);
+    expect(await keysLike('day:')).toEqual(['day:2026-11-18', 'day:2026-11-18:ios']);
+  });
+
+  it('counts a ping without a date under the UTC date, as before', async () => {
+    await ping(now, dayOnly);
+    expect(await keysLike('day:')).toEqual(['day:2026-11-17', 'day:2026-11-17:ios']);
+  });
+
+  it('counts a real date more than a day off (a wrong device clock) under the UTC date', async () => {
+    expect((await ping(now, { ...dayOnly, t: '2026-11-10' }, '8.7.7.1')).status).toBe(204);
+    expect((await ping(now, { ...dayOnly, t: '2026-11-19' }, '8.7.7.2')).status).toBe(204);
+    expect(await rows()).toEqual({ 'day:2026-11-17': 2, 'day:2026-11-17:ios': 2 });
+  });
+
+  it('refuses a malformed date with 400 and counts nothing', async () => {
+    const bad = ['2026-02-30', '2026-11-1', '2026-11-16\n', ' 2026-11-16', '', 20261116, null, ['2026-11-16']];
+    for (const [i, t] of bad.entries()) {
+      expect((await ping(now, { ...good, t }, `8.8.8.${i}`)).status, String(t)).toBe(400);
+    }
+    expect((await ping(now, { ...good, x: '2026-11-16' }, '8.8.9.1')).status).toBe(400);
+    expect((await ping(now, { ...good, t: '2026-11-16', x: 1 }, '8.8.9.2')).status).toBe(400);
+    expect(await rows()).toEqual({});
+  });
+
+  it('a dry run with a date is validated and counts nothing', async () => {
+    const dry = (t: unknown) =>
+      handlePing(
+        new Request('https://w.test/v1/ping', {
+          method: 'POST',
+          headers: { 'CF-Connecting-IP': '4.4.4.4', 'X-Dry-Run': '1' },
+          body: JSON.stringify({ ...good, t }),
+        }),
+        env,
+        now,
+      );
+    expect((await dry('2026-11-16')).status).toBe(204);
+    expect((await dry('2026-13-01')).status).toBe(400);
+    expect(await rows()).toEqual({});
+  });
+});
+
+describe('ping counters around UTC midnight (no date sent)', () => {
   it('one second either side of midnight lands on different UTC days', async () => {
     const midnight = at('2026-11-14T00:00:00Z');
     expect((await ping(midnight - 1000, dayOnly, '1.1.1.1')).status).toBe(204);

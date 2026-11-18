@@ -1,5 +1,5 @@
-import { addDays, isDateString } from '../../app/src/game/dates';
 import { errorResponse } from './http';
+import { isLocalDate } from './localDate';
 import { overLimit } from './rateLimit';
 
 const MAX_BODY = 100;
@@ -17,9 +17,7 @@ export function parseResult(text: string, utcToday: string): { d: string; g: num
   const keys = Object.keys(o);
   if (keys.length !== 2 || !keys.includes('d') || !keys.includes('g')) return null;
   const { d, g } = o;
-  // isDateString checks the shape only; the round trip rejects 2026-02-30.
-  if (!isDateString(d) || addDays(d, 0) !== d) return null;
-  if (d < addDays(utcToday, -1) || d > addDays(utcToday, 1)) return null;
+  if (!isLocalDate(d, utcToday)) return null;
   const tries = typeof g === 'number' && Number.isInteger(g) && g >= 1 && g <= 6;
   if (!tries && g !== 'x') return null;
   return { d, g: g as number | 'x' };

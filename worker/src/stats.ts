@@ -1,8 +1,9 @@
 import { addDays, dnum, isDateString, isoWeek, monthOf } from '../../app/src/game/dates';
+import { puzzleNumber } from '../../app/src/game/daily';
 import { errorResponse } from './http';
 
 const PLATFORMS = ['ios', 'android', 'web'] as const;
-const CACHE = 'public, max-age=300';
+const CACHE = 'private, max-age=300';
 export const STATS_CSP =
   "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const PRIVACY_URL = 'https://github.com/mjohnson139/words-and-waffles/blob/main/PRIVACY.md';
@@ -35,6 +36,9 @@ export interface Tries {
 export interface Stats {
   installs: number;
   today: string;
+  puzzle: number;
+  zone: string;
+  zoneFallback: boolean;
   days: Row[];
   weeks: Row[];
   months: Row[];
@@ -109,18 +113,32 @@ export function triesSummary(date: string, get: (key: string) => number): Tries 
   return { date, counts, played, won, winRate: played ? Math.round((100 * won) / played) : 0 };
 }
 
-/**
- * The puzzle "Today's word" shows. Results carry the player's local date, so
- * around UTC midnight most players are still on yesterday's word (or already on
- * tomorrow's). Show whichever of the three has the most finished games; ties go
- * to the UTC date, then yesterday.
- */
-export function currentTries(today: string, get: (key: string) => number): Tries {
-  const options = [today, addDays(today, -1), addDays(today, 1)].map((d) => triesSummary(d, get));
-  return options.reduce((best, t) => (t.played > best.played ? t : best));
+export interface ViewerDay {
+  today: string;
+  zone: string;
+  fallback: boolean;
 }
 
-export async function loadStats(db: D1Database, now: number): Promise<Stats> {
+const ZONE_ID = /^[A-Za-z0-9_+\-/]{1,64}$/;
+
+/** The viewer's local date, which picks the puzzle the page shows; any bad or missing zone gives UTC. Never throws. */
+export function viewerDay(now: number, zone: unknown): ViewerDay {
+  try {
+    if (typeof zone !== 'string' || !ZONE_ID.test(zone)) throw new Error('bad zone');
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: zone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
+    if (!isDateString(today)) throw new Error('bad date');
+    return { today, zone, fallback: false };
+  } catch {
+    return { today: new Date(now).toISOString().slice(0, 10), zone: 'UTC', fallback: true };
+  }
+}
+
+export async function loadStats(db: D1Database, now: number, zone?: unknown): Promise<Stats> {
   const { results } = await db.prepare('SELECT key, n FROM counts').all<{ key: string; n: number }>();
   const counts = new Map(results.map((r) => [r.key, r.n]));
   const get = (k: string) => counts.get(k) ?? 0;
@@ -132,7 +150,7 @@ export async function loadStats(db: D1Database, now: number): Promise<Stats> {
     web: get(`${base}:web`),
   });
 
-  const today = new Date(now).toISOString().slice(0, 10);
+  const { today, zone: zoneId, fallback } = viewerDay(now, zone);
   const days = Array.from({ length: 30 }, (_, i) => addDays(today, -i));
   const weeks = [...new Set(Array.from({ length: 12 }, (_, i) => isoWeek(addDays(today, -7 * i))))];
   const monthSet: string[] = [];
@@ -147,6 +165,9 @@ export async function loadStats(db: D1Database, now: number): Promise<Stats> {
   return {
     installs: get('installs'),
     today,
+    puzzle: puzzleNumber(today),
+    zone: zoneId,
+    zoneFallback: fallback,
     days: days.map((d) => row(d, `day:${d}`)),
     weeks: weeks.map((w) => row(w, `week:${w}`)),
     months: monthSet.map((m) => row(m, `month:${m}`)),
@@ -158,7 +179,7 @@ export async function loadStats(db: D1Database, now: number): Promise<Stats> {
     year,
     span,
     grid: span === 'year' ? year : heatGrid(today, span, get),
-    tries: currentTries(today, get),
+    tries: triesSummary(today, get),
   };
 }
 
@@ -228,7 +249,7 @@ const heatmap = (span: HeatSpan, grid: Cell[][], today: string): string => {
   return `${body}<div class="legend">Less ${legend} More</div>`;
 };
 
-const triesBars = (t: Tries): string => {
+const triesBars = (t: Tries, puzzle: number): string => {
   const max = Math.max(...TRY_KEYS.map((g) => t.counts[g]));
   const rows = TRY_KEYS.map((g) => {
     const n = t.counts[g];
@@ -238,8 +259,8 @@ const triesBars = (t: Tries): string => {
     }" style="width:${width}%">${esc(n)}</span></div>`;
   }).join('');
   const line = t.played
-    ? `${esc(dayLabel(t.date))} &middot; ${esc(t.played)} finished &middot; ${esc(t.winRate)}% won`
-    : 'No plates cleared yet today.';
+    ? `${esc(t.played)} finished &middot; ${esc(t.winRate)}% won`
+    : `Nobody has finished #${esc(puzzle)} yet.`;
   return `${rows}<p class="muted">${line}</p>`;
 };
 
@@ -265,6 +286,7 @@ h1,h2,.num{font-family:ui-rounded,"SF Pro Rounded",system-ui,sans-serif;font-wei
 h1{font-size:2rem;margin:8px 0 4px}
 h2{font-size:1.2rem;margin:0 0 10px}
 header p{margin:0 0 16px;color:var(--muted)}
+.puzzle{font-family:ui-rounded,"SF Pro Rounded",system-ui,sans-serif;font-weight:800;font-size:1.25rem;color:var(--ink)}
 .plate{background:var(--plate);border-radius:16px;box-shadow:0 2px 10px rgba(43,26,16,.12);padding:16px;margin:0 0 16px}
 .plates{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:0 0 16px}
 @media (min-width:560px){.plates{grid-template-columns:repeat(4,1fr)}}
@@ -301,6 +323,9 @@ p{margin:0 0 8px}ul{margin:0 0 8px;padding-left:20px}li{margin:0 0 6px}
 a{color:var(--berry)}
 `;
 
+const puzzleLine = (s: Stats): string =>
+  `<p class="puzzle">Puzzle #${esc(s.puzzle)} &middot; ${esc(dayLabel(s.today))}</p>`;
+
 export function renderHtml(s: Stats): string {
   const c = s.current;
   return `<!doctype html>
@@ -308,32 +333,33 @@ export function renderHtml(s: Stats): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Words &amp; Waffles stats</title>
 <style>${CSS}</style></head><body><main>
-<header><h1>Words &amp; Waffles stats</h1><p>Who is eating breakfast, counted without knowing who.</p></header>
-<div class="plates">${stat(c.day.total, 'players today')}${stat(c.week.total, 'this week')}${stat(c.month.total, 'this month')}${stat(s.installs, 'installs')}</div>
+<header><h1>Words &amp; Waffles stats</h1><p>Who is eating breakfast, counted without knowing who.</p>${puzzleLine(s)}</header>
+<div class="plates">${stat(c.day.total, `played #${s.puzzle}`)}${stat(c.week.total, 'this week')}${stat(c.month.total, 'this month')}${stat(s.installs, 'installs')}</div>
 <section class="plate"><h2>${HEADINGS[s.span]}</h2>${heatmap(s.span, s.grid, s.today)}</section>
-<section class="plate"><h2>Today's word</h2>${triesBars(s.tries)}</section>
-<section class="plate"><h2>Where people play</h2>${platformBar('Today', c.day)}${platformBar('This month', c.month)}</section>
+<section class="plate"><h2>How #${esc(s.puzzle)} went</h2>${triesBars(s.tries, s.puzzle)}</section>
+<section class="plate"><h2>Where people play</h2>${platformBar(`Puzzle #${s.puzzle}`, c.day)}${platformBar('This month', c.month)}</section>
 <section class="plate"><h2>What we count</h2>
 <p>Two things, nothing else:</p>
 <ul>
-<li>At most one tiny ping a day: whether it is the first open of the day, week and month, whether it is a first install, and whether it runs on iOS, Android or the web.</li>
+<li>At most one tiny ping a day: whether it is the first open of the day, week and month, whether it is a first install, whether it runs on iOS, Android or the web, and the player's date, which says which puzzle they are on.</li>
 <li>When you finish the daily word: the date and how many tries it took (or that it got away).</li>
 </ul>
-<p>The server only adds one to a few counters. No identifier is sent or stored: no cookies, no request logs, no IP address and no user agent. Both can be turned off in the app's Stats tab.</p></section>
+<p>The server only adds one to a few counters. No identifier is sent or stored: no cookies, no request logs, no IP address and no user agent. This page uses your connection's time zone only to pick which puzzle to show, and keeps nothing. Both counts can be turned off in the app's Stats tab.</p></section>
 <section class="plate"><h2>Honest limits</h2>
 <ul>
 <li>Counts are per device or browser, not per person.</li>
 <li>A cleared browser counts again as a new install.</li>
-<li>"Today" here is UTC, so players near midnight may already be on the next word.</li>
 <li>Anyone can send fake counts, so treat the numbers as rough.</li>
 </ul></section>
 <p><a href="${PRIVACY_URL}">Read the full privacy notes</a></p>
 </main></body></html>`;
 }
 
-export async function handleStats(env: Cloudflare.Env, now: number = Date.now()): Promise<Response> {
+const viewerZone = (request: Request): unknown => (request as { cf?: { timezone?: unknown } }).cf?.timezone;
+
+export async function handleStats(request: Request, env: Cloudflare.Env, now: number = Date.now()): Promise<Response> {
   try {
-    const html = renderHtml(await loadStats(env.DB, now));
+    const html = renderHtml(await loadStats(env.DB, now, viewerZone(request)));
     return new Response(html, {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
@@ -346,9 +372,9 @@ export async function handleStats(env: Cloudflare.Env, now: number = Date.now())
   }
 }
 
-export async function handleStatsJson(env: Cloudflare.Env, now: number = Date.now()): Promise<Response> {
+export async function handleStatsJson(request: Request, env: Cloudflare.Env, now: number = Date.now()): Promise<Response> {
   try {
-    return new Response(JSON.stringify(await loadStats(env.DB, now)), {
+    return new Response(JSON.stringify(await loadStats(env.DB, now, viewerZone(request))), {
       headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': CACHE },
     });
   } catch {

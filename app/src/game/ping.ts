@@ -1,7 +1,8 @@
 /**
  * Anonymous usage ping flags. The app stores only the last day, week and
  * month it pinged; the flags say "first open today / this week / this month /
- * ever" so the server can count people without any identifier.
+ * ever" so the server can count people without any identifier. `t` is the
+ * device's local date, so each player is counted on their own calendar day.
  */
 import { isDateString, isoWeek, monthOf } from './dates';
 
@@ -17,6 +18,7 @@ export interface PingBody {
   m: boolean;
   n: boolean;
   p: Platform;
+  t: string;
 }
 
 /** The body to send, or null when we already pinged today. */
@@ -28,6 +30,7 @@ export function pingBody(state: PingState, today: string, p: Platform): PingBody
     m: state.lastMonth !== monthOf(today),
     n: !state.lastDay,
     p,
+    t: today,
   };
 }
 

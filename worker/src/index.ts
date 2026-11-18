@@ -31,9 +31,9 @@ async function route(request: Request, env: Cloudflare.Env): Promise<Response> {
     case '/v1/result':
       return allow('POST', () => handleResult(request, env));
     case '/stats':
-      return allow('GET', () => handleStats(env));
+      return allow('GET', () => handleStats(request, env));
     case '/stats.json':
-      return allow('GET', () => handleStatsJson(env));
+      return allow('GET', () => handleStatsJson(request, env));
     default:
       return errorResponse(404, 'not found');
   }

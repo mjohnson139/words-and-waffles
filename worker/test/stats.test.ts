@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { addDays, dnum } from '../../app/src/game/dates';
-import { currentTries, firstDay, heatGrid, heatLevel, heatSpan, triesSummary, yearGrid } from '../src/stats';
+import { env } from 'cloudflare:test';
+import { firstDay, heatGrid, heatLevel, heatSpan, loadStats, renderHtml, triesSummary, viewerDay, yearGrid } from '../src/stats';
+import { puzzleNumber } from '../../app/src/game/daily';
 
 describe('heatLevel', () => {
   it('is 0 for nothing and scales 1..4 against the max', () => {
@@ -56,19 +58,96 @@ describe('triesSummary', () => {
   });
 });
 
-describe('currentTries', () => {
-  const at = (data: Record<string, number>) => (k: string) => data[k] ?? 0;
-  it('shows the UTC date when it has the most results', () => {
-    expect(currentTries('2026-11-13', at({ 'tries:2026-11-13:3': 2, 'tries:2026-11-12:3': 1 })).date).toBe('2026-11-13');
+describe('viewerDay', () => {
+  const at = Date.parse('2026-11-17T02:51:00Z');
+  it("gives the viewer's local date", () => {
+    expect(viewerDay(at, 'America/Denver')).toEqual({ today: '2026-11-16', zone: 'America/Denver', fallback: false });
+    expect(viewerDay(at, 'Pacific/Auckland')).toMatchObject({ today: '2026-11-17', fallback: false });
+    expect(viewerDay(at, 'UTC')).toMatchObject({ today: '2026-11-17', fallback: false });
   });
-  it("shows yesterday's word while most players are still on it", () => {
-    expect(currentTries('2026-11-13', at({ 'tries:2026-11-13:3': 1, 'tries:2026-11-12:x': 5 })).date).toBe('2026-11-12');
+  it.each([['Mars/Olympus'], [''], [undefined], [42], ['<b>']])('falls back to UTC for %j', (zone) => {
+    expect(viewerDay(at, zone)).toEqual({ today: '2026-11-17', zone: 'UTC', fallback: true });
   });
-  it('shows tomorrow when only players east of UTC have finished', () => {
-    expect(currentTries('2026-12-31', at({ 'tries:2027-01-01:1': 1 })).date).toBe('2027-01-01');
+});
+
+describe('loadStats for a viewer', () => {
+  const at = Date.parse('2026-11-17T02:51:00Z');
+  const seed = (data: Record<string, number>) =>
+    env.DB.batch(
+      Object.entries(data).map(([k, n]) => env.DB.prepare('INSERT INTO counts (key, n) VALUES (?, ?)').bind(k, n)),
+    );
+
+  it('uses the viewer day for tiles, tries and the heatmap', async () => {
+    await seed({ 'day:2026-11-16': 11, 'tries:2026-11-16:4': 1, 'tries:2026-11-16:6': 1 });
+    const s = await loadStats(env.DB, at, 'America/Denver');
+    expect(s.current.day.total).toBe(11);
+    expect(s.tries).toMatchObject({ date: '2026-11-16', played: 2 });
+    const cells = s.grid.flat();
+    expect(cells.find((c) => c.date === '2026-11-16')?.future).toBeUndefined();
+    expect(cells.find((c) => c.date === '2026-11-17')?.future).toBe(true);
+    const html = renderHtml(s);
+    expect(html).toContain('class="cell l4 today"');
   });
-  it('falls back to the UTC date with no results at all', () => {
-    expect(currentTries('2026-11-13', at({}))).toMatchObject({ date: '2026-11-13', played: 0 });
+
+  it('shows nothing for the same data from UTC', async () => {
+    await seed({ 'day:2026-11-16': 11, 'tries:2026-11-16:4': 1, 'tries:2026-11-16:6': 1 });
+    const s = await loadStats(env.DB, at, 'UTC');
+    expect(s.current.day.total).toBe(0);
+    expect(s.tries.played).toBe(0);
+  });
+
+  it("tries are today's only", async () => {
+    await seed({ 'tries:2026-11-16:3': 5, 'tries:2026-11-18:3': 5 });
+    expect((await loadStats(env.DB, at, 'UTC')).tries.played).toBe(0);
+  });
+});
+
+describe('renderHtml names one puzzle', () => {
+  const at = Date.parse('2026-11-17T02:51:00Z');
+  const owner = () =>
+    env.DB.batch(
+      Object.entries({ 'day:2026-11-16': 11, 'day:2026-11-16:web': 11, 'tries:2026-11-16:4': 1, 'tries:2026-11-16:6': 1 }).map(
+        ([k, n]) => env.DB.prepare('INSERT INTO counts (key, n) VALUES (?, ?)').bind(k, n),
+      ),
+    );
+  const PRIVACY = "This page uses your connection's time zone only to pick which puzzle to show, and keeps nothing.";
+  // What a reader sees: no style block, no tags or attributes, and the one privacy clause removed.
+  const visible = (html: string) =>
+    html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<[^>]*>/g, ' ').replace(PRIVACY, '');
+
+  it('the owner\'s case from Denver: every number counts puzzle #16', async () => {
+    await owner();
+    const s = await loadStats(env.DB, at, 'America/Denver');
+    expect(s.puzzle).toBe(puzzleNumber('2026-11-16'));
+    const html = renderHtml(s);
+    expect(html).toContain('<p class="puzzle">Puzzle #16 &middot; Mon, Nov 16</p>');
+    expect(html).toContain('<div class="num">11</div><div class="lbl">played #16</div>');
+    expect(html).toContain('<h2>How #16 went</h2>');
+    expect(html).toContain('2 finished &middot; 100% won');
+    expect(html).toContain('<b>Puzzle #16</b>');
+    expect(html).toContain(PRIVACY);
+  });
+
+  it('a viewer already on Nov 17 sees puzzle #17 with nothing played, so the numbers still agree', async () => {
+    await owner();
+    const html = renderHtml(await loadStats(env.DB, at, 'Pacific/Auckland'));
+    expect(html).toContain('Puzzle #17 &middot; Tue, Nov 17');
+    expect(html).toContain('<div class="num">0</div><div class="lbl">played #17</div>');
+    expect(html).toContain('Nobody has finished #17 yet.');
+  });
+
+  it.each([['America/Denver'], ['Pacific/Auckland'], [undefined]])('no time-zone or "today" wording for %s', async (zone) => {
+    await owner();
+    const text = visible(renderHtml(await loadStats(env.DB, at, zone)));
+    for (const word of ['UTC', 'time zone', 'Mountain', 'VPN', "server's clock", 'today']) {
+      expect(text.toLowerCase(), word).not.toContain(word.toLowerCase());
+    }
+  });
+
+  it('the fallback (no zone) renders the UTC date\'s puzzle the same way', async () => {
+    const s = await loadStats(env.DB, at, undefined);
+    expect(s).toMatchObject({ zone: 'UTC', zoneFallback: true, puzzle: puzzleNumber('2026-11-17') });
+    expect(renderHtml(s)).toContain('Puzzle #17 &middot; Tue, Nov 17');
   });
 });
 

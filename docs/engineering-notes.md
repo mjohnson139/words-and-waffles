@@ -16,11 +16,11 @@ The current architecture map and the invariants that are easy to break. Read the
 ## Invariants
 
 - **The prototype is the behavior spec.** Scoring, copy, timings, stats and badge rules are ports. A change in behavior is a product decision, not a refactor.
-- **Dates are local calendar strings** (`YYYY-MM-DD` from the device's local time). Day arithmetic goes through `dnum()` (UTC midnight of that calendar date), so DST never makes a day 23 or 25 hours. Server-side counter keys use UTC dates; the word endpoint takes the player's local date.
+- **Dates are local calendar strings** (`YYYY-MM-DD` from the device's local time). Day arithmetic goes through `dnum()` (UTC midnight of that calendar date), so DST never makes a day 23 or 25 hours. Ping counters are filed under the player's local date (the ping's `t`, when it is within a day of UTC; older apps without it, and a device clock more than a day off, fall back to the UTC date), results under the daily word's date, and the word endpoint takes the player's local date. `/stats` shows the puzzle for the viewer's date, taken from the viewer's zone (`request.cf.timezone`, UTC when missing) and answers `Cache-Control: private` because the page differs by viewer.
 - **Stats are derived, never stored.** Only game records persist. A backup is the records and nothing else.
 - **Merging games** keeps the record with the higher `rank()` per id (finished beats playing, more guesses beat fewer). Restore and any future sync use the same rule.
 - **A daily game that has guesses keeps its answer**, even if the word endpoint later returns a different word for that date.
-- **Nothing identifies a player.** The ping body has five fields and no ID; the result body (`/v1/result`, PR #5) has two, the daily date and the tries, and its counter key has no platform; the Worker stores counters only and never logs requests. The rate limiter's IP map lives in isolate memory only.
+- **Nothing identifies a player.** The ping body has six fields (the four flags, the platform and the local date) and no ID; the result body (`/v1/result`, PR #5) has two, the daily date and the tries, and its counter key has no platform; the Worker stores counters only and never logs requests. The rate limiter's IP map lives in isolate memory only.
 - **The word hashing is obfuscation**, not security. Never describe it otherwise.
 - **Expo Go compatible:** only Expo SDK modules, no custom native code.
 - **Animations** use the native driver on iOS/Android and the JS driver on web; reduced motion skips them entirely, as the prototype's `calm` does. Timings: tile flip 460 ms staggered 240 ms with the colour applied at the midpoint, pop 130 ms, shake 400 ms, hop 600 ms staggered 80 ms, toppings about 40 particles over 4.2 s.

@@ -208,8 +208,9 @@ async function playAuditOffline(browser) {
     assert(pings.length === 1, `${pings.length} pings, expected 1`);
     assert(pingStatus[0] >= 200 && pingStatus[0] < 300, `ping answered ${pingStatus[0]}`);
     const body = JSON.parse(pings[0].body ?? '{}');
-    assert(Object.keys(body).sort().join() === 'd,m,n,p,w', `ping keys ${Object.keys(body).sort().join()}`);
+    assert(Object.keys(body).sort().join() === 'd,m,n,p,t,w', `ping keys ${Object.keys(body).sort().join()}`);
     assert(body.p === 'web' && ['d', 'w', 'm', 'n'].every((k) => typeof body[k] === 'boolean'), 'ping values not as specified');
+    assert(/^\d{4}-\d\d-\d\d$/.test(body.t), `ping date ${body.t}`);
     // The game above was won in 2, so the app sent one end-of-game result.
     await expect.poll(() => resultStatus.length, { timeout: 10_000 }).toBe(1);
     const results = resultPosts(reqs);
@@ -218,7 +219,7 @@ async function playAuditOffline(browser) {
     const res = JSON.parse(results[0].body ?? '{}');
     assert(Object.keys(res).sort().join() === 'd,g', `result keys ${Object.keys(res).sort().join()}`);
     assert(res.g === 2 && /^\d{4}-\d\d-\d\d$/.test(res.d), 'result values not as specified');
-    return `1 word request, 1 ping (${pingStatus[0]}, keys d m n p w), 1 result (${resultStatus[0]}, g 2), hosts ${hosts(reqs).join(' + ')}`;
+    return `1 word request, 1 ping (${pingStatus[0]}, keys d m n p t w), 1 result (${resultStatus[0]}, g 2), hosts ${hosts(reqs).join(' + ')}`;
   });
 
   await check('offline cold start to a playable board', 'offline', async () => {

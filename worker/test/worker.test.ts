@@ -167,9 +167,12 @@ describe('stats', () => {
       (await (await worker.fetch(new Request('https://w.test/stats.json', init as RequestInit), env)).json()) as {
         today: string;
         zone: string;
+        puzzle: number;
       };
     const nz = await get({ cf: { timezone: 'Pacific/Auckland' } });
     expect(nz.zone).toBe('Pacific/Auckland');
+    expect(nz.puzzle).toBe(puzzleNumber(nz.today));
+    expect(nz).not.toHaveProperty('zoneLabel');
     expect(nz.today).toBe(new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Auckland' }).format(Date.now()));
     const none = await get();
     expect(none.zone).toBe('UTC');

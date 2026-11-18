@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { addDays, dnum } from '../../app/src/game/dates';
 import { env } from 'cloudflare:test';
 import { firstDay, heatGrid, heatLevel, heatSpan, loadStats, renderHtml, triesSummary, viewerDay, yearGrid } from '../src/stats';
-import type { Stats } from '../src/stats';
+import { puzzleNumber } from '../../app/src/game/daily';
 
 describe('heatLevel', () => {
   it('is 0 for nothing and scales 1..4 against the max', () => {
@@ -60,18 +60,13 @@ describe('triesSummary', () => {
 
 describe('viewerDay', () => {
   const at = Date.parse('2026-11-17T02:51:00Z');
-  it("gives the viewer's local date and a plain zone name", () => {
-    expect(viewerDay(at, 'America/Denver')).toEqual({
-      today: '2026-11-16',
-      zone: 'America/Denver',
-      label: 'Mountain Time',
-      fallback: false,
-    });
+  it("gives the viewer's local date", () => {
+    expect(viewerDay(at, 'America/Denver')).toEqual({ today: '2026-11-16', zone: 'America/Denver', fallback: false });
     expect(viewerDay(at, 'Pacific/Auckland')).toMatchObject({ today: '2026-11-17', fallback: false });
     expect(viewerDay(at, 'UTC')).toMatchObject({ today: '2026-11-17', fallback: false });
   });
   it.each([['Mars/Olympus'], [''], [undefined], [42], ['<b>']])('falls back to UTC for %j', (zone) => {
-    expect(viewerDay(at, zone)).toEqual({ today: '2026-11-17', zone: 'UTC', label: 'UTC', fallback: true });
+    expect(viewerDay(at, zone)).toEqual({ today: '2026-11-17', zone: 'UTC', fallback: true });
   });
 });
 
@@ -107,27 +102,52 @@ describe('loadStats for a viewer', () => {
   });
 });
 
-describe('renderHtml zone copy', () => {
-  const base = async (zone?: string): Promise<Stats> => loadStats(env.DB, Date.parse('2026-11-17T02:51:00Z'), zone);
+describe('renderHtml names one puzzle', () => {
+  const at = Date.parse('2026-11-17T02:51:00Z');
+  const owner = () =>
+    env.DB.batch(
+      Object.entries({ 'day:2026-11-16': 11, 'day:2026-11-16:web': 11, 'tries:2026-11-16:4': 1, 'tries:2026-11-16:6': 1 }).map(
+        ([k, n]) => env.DB.prepare('INSERT INTO counts (key, n) VALUES (?, ?)').bind(k, n),
+      ),
+    );
+  const PRIVACY = "This page uses your connection's time zone only to pick which puzzle to show, and keeps nothing.";
+  // What a reader sees: no style block, no tags or attributes, and the one privacy clause removed.
+  const visible = (html: string) =>
+    html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<[^>]*>/g, ' ').replace(PRIVACY, '');
 
-  it('names the viewer day and zone, and not UTC', async () => {
-    const html = renderHtml(await base('America/Denver'));
-    expect(html).toContain('Today is Mon, Nov 16, Mountain Time. Each player counts on their own calendar day.');
-    // The mandated "Honest limits" bullet about older counts is the only place UTC is named.
-    expect(html).not.toContain('UTC');
-    expect(html).toContain("<h2>Today's word</h2>");
-    expect(html).toContain('players today');
+  it('the owner\'s case from Denver: every number counts puzzle #16', async () => {
+    await owner();
+    const s = await loadStats(env.DB, at, 'America/Denver');
+    expect(s.puzzle).toBe(puzzleNumber('2026-11-16'));
+    const html = renderHtml(s);
+    expect(html).toContain('<p class="puzzle">Puzzle #16 &middot; Mon, Nov 16</p>');
+    expect(html).toContain('<div class="num">11</div><div class="lbl">played #16</div>');
+    expect(html).toContain('<h2>How #16 went</h2>');
+    expect(html).toContain('2 finished &middot; 100% won');
+    expect(html).toContain('<b>Puzzle #16</b>');
+    expect(html).toContain(PRIVACY);
   });
 
-  it('says UTC and why when the zone is unknown', async () => {
-    const html = renderHtml(await base());
-    expect(html).toContain('Today is Tue, Nov 17, UTC: we could not tell your time zone.');
+  it('a viewer already on Nov 17 sees puzzle #17 with nothing played, so the numbers still agree', async () => {
+    await owner();
+    const html = renderHtml(await loadStats(env.DB, at, 'Pacific/Auckland'));
+    expect(html).toContain('Puzzle #17 &middot; Tue, Nov 17');
+    expect(html).toContain('<div class="num">0</div><div class="lbl">played #17</div>');
+    expect(html).toContain('Nobody has finished #17 yet.');
   });
 
-  it('escapes the zone label', async () => {
-    const html = renderHtml({ ...(await base('America/Denver')), zoneLabel: '<x>"' });
-    expect(html).toContain('&#60;x&#62;&#34;');
-    expect(html).not.toContain('<x>');
+  it.each([['America/Denver'], ['Pacific/Auckland'], [undefined]])('no time-zone or "today" wording for %s', async (zone) => {
+    await owner();
+    const text = visible(renderHtml(await loadStats(env.DB, at, zone)));
+    for (const word of ['UTC', 'time zone', 'Mountain', 'VPN', "server's clock", 'today']) {
+      expect(text.toLowerCase(), word).not.toContain(word.toLowerCase());
+    }
+  });
+
+  it('the fallback (no zone) renders the UTC date\'s puzzle the same way', async () => {
+    const s = await loadStats(env.DB, at, undefined);
+    expect(s).toMatchObject({ zone: 'UTC', zoneFallback: true, puzzle: puzzleNumber('2026-11-17') });
+    expect(renderHtml(s)).toContain('Puzzle #17 &middot; Tue, Nov 17');
   });
 });
 

@@ -1,4 +1,5 @@
 import { addDays, dnum, isDateString, isoWeek, monthOf } from '../../app/src/game/dates';
+import { puzzleNumber } from '../../app/src/game/daily';
 import { errorResponse } from './http';
 
 const PLATFORMS = ['ios', 'android', 'web'] as const;
@@ -35,8 +36,8 @@ export interface Tries {
 export interface Stats {
   installs: number;
   today: string;
+  puzzle: number;
   zone: string;
-  zoneLabel: string;
   zoneFallback: boolean;
   days: Row[];
   weeks: Row[];
@@ -115,13 +116,12 @@ export function triesSummary(date: string, get: (key: string) => number): Tries 
 export interface ViewerDay {
   today: string;
   zone: string;
-  label: string;
   fallback: boolean;
 }
 
 const ZONE_ID = /^[A-Za-z0-9_+\-/]{1,64}$/;
 
-/** The viewer's local date and a plain name for their zone; any bad or missing zone gives UTC. Never throws. */
+/** The viewer's local date, which picks the puzzle the page shows; any bad or missing zone gives UTC. Never throws. */
 export function viewerDay(now: number, zone: unknown): ViewerDay {
   try {
     if (typeof zone !== 'string' || !ZONE_ID.test(zone)) throw new Error('bad zone');
@@ -132,11 +132,9 @@ export function viewerDay(now: number, zone: unknown): ViewerDay {
       day: '2-digit',
     }).format(now);
     if (!isDateString(today)) throw new Error('bad date');
-    const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'longGeneric' }).formatToParts(now);
-    const label = parts.find((p) => p.type === 'timeZoneName')?.value || zone;
-    return { today, zone, label, fallback: false };
+    return { today, zone, fallback: false };
   } catch {
-    return { today: new Date(now).toISOString().slice(0, 10), zone: 'UTC', label: 'UTC', fallback: true };
+    return { today: new Date(now).toISOString().slice(0, 10), zone: 'UTC', fallback: true };
   }
 }
 
@@ -152,7 +150,7 @@ export async function loadStats(db: D1Database, now: number, zone?: unknown): Pr
     web: get(`${base}:web`),
   });
 
-  const { today, zone: zoneId, label, fallback } = viewerDay(now, zone);
+  const { today, zone: zoneId, fallback } = viewerDay(now, zone);
   const days = Array.from({ length: 30 }, (_, i) => addDays(today, -i));
   const weeks = [...new Set(Array.from({ length: 12 }, (_, i) => isoWeek(addDays(today, -7 * i))))];
   const monthSet: string[] = [];
@@ -167,8 +165,8 @@ export async function loadStats(db: D1Database, now: number, zone?: unknown): Pr
   return {
     installs: get('installs'),
     today,
+    puzzle: puzzleNumber(today),
     zone: zoneId,
-    zoneLabel: label,
     zoneFallback: fallback,
     days: days.map((d) => row(d, `day:${d}`)),
     weeks: weeks.map((w) => row(w, `week:${w}`)),
@@ -251,7 +249,7 @@ const heatmap = (span: HeatSpan, grid: Cell[][], today: string): string => {
   return `${body}<div class="legend">Less ${legend} More</div>`;
 };
 
-const triesBars = (t: Tries): string => {
+const triesBars = (t: Tries, puzzle: number): string => {
   const max = Math.max(...TRY_KEYS.map((g) => t.counts[g]));
   const rows = TRY_KEYS.map((g) => {
     const n = t.counts[g];
@@ -261,8 +259,8 @@ const triesBars = (t: Tries): string => {
     }" style="width:${width}%">${esc(n)}</span></div>`;
   }).join('');
   const line = t.played
-    ? `${esc(dayLabel(t.date))} &middot; ${esc(t.played)} finished &middot; ${esc(t.winRate)}% won`
-    : 'No plates cleared yet today.';
+    ? `${esc(t.played)} finished &middot; ${esc(t.winRate)}% won`
+    : `Nobody has finished #${esc(puzzle)} yet.`;
   return `${rows}<p class="muted">${line}</p>`;
 };
 
@@ -288,6 +286,7 @@ h1,h2,.num{font-family:ui-rounded,"SF Pro Rounded",system-ui,sans-serif;font-wei
 h1{font-size:2rem;margin:8px 0 4px}
 h2{font-size:1.2rem;margin:0 0 10px}
 header p{margin:0 0 16px;color:var(--muted)}
+.puzzle{font-family:ui-rounded,"SF Pro Rounded",system-ui,sans-serif;font-weight:800;font-size:1.25rem;color:var(--ink)}
 .plate{background:var(--plate);border-radius:16px;box-shadow:0 2px 10px rgba(43,26,16,.12);padding:16px;margin:0 0 16px}
 .plates{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:0 0 16px}
 @media (min-width:560px){.plates{grid-template-columns:repeat(4,1fr)}}
@@ -324,10 +323,8 @@ p{margin:0 0 8px}ul{margin:0 0 8px;padding-left:20px}li{margin:0 0 6px}
 a{color:var(--berry)}
 `;
 
-const todayLine = (s: Stats): string =>
-  `<p>Today is ${esc(dayLabel(s.today))}, ${esc(s.zoneLabel)}${
-    s.zoneFallback ? ': we could not tell your time zone' : ''
-  }. Each player counts on their own calendar day.</p>`;
+const puzzleLine = (s: Stats): string =>
+  `<p class="puzzle">Puzzle #${esc(s.puzzle)} &middot; ${esc(dayLabel(s.today))}</p>`;
 
 export function renderHtml(s: Stats): string {
   const c = s.current;
@@ -336,24 +333,22 @@ export function renderHtml(s: Stats): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Words &amp; Waffles stats</title>
 <style>${CSS}</style></head><body><main>
-<header><h1>Words &amp; Waffles stats</h1><p>Who is eating breakfast, counted without knowing who.</p>${todayLine(s)}</header>
-<div class="plates">${stat(c.day.total, 'players today')}${stat(c.week.total, 'this week')}${stat(c.month.total, 'this month')}${stat(s.installs, 'installs')}</div>
+<header><h1>Words &amp; Waffles stats</h1><p>Who is eating breakfast, counted without knowing who.</p>${puzzleLine(s)}</header>
+<div class="plates">${stat(c.day.total, `played #${s.puzzle}`)}${stat(c.week.total, 'this week')}${stat(c.month.total, 'this month')}${stat(s.installs, 'installs')}</div>
 <section class="plate"><h2>${HEADINGS[s.span]}</h2>${heatmap(s.span, s.grid, s.today)}</section>
-<section class="plate"><h2>Today's word</h2>${triesBars(s.tries)}</section>
-<section class="plate"><h2>Where people play</h2>${platformBar('Today', c.day)}${platformBar('This month', c.month)}</section>
+<section class="plate"><h2>How #${esc(s.puzzle)} went</h2>${triesBars(s.tries, s.puzzle)}</section>
+<section class="plate"><h2>Where people play</h2>${platformBar(`Puzzle #${s.puzzle}`, c.day)}${platformBar('This month', c.month)}</section>
 <section class="plate"><h2>What we count</h2>
 <p>Two things, nothing else:</p>
 <ul>
-<li>At most one tiny ping a day: whether it is the first open of the day, week and month, whether it is a first install, whether it runs on iOS, Android or the web, and the player's own date, so they count on their own day.</li>
+<li>At most one tiny ping a day: whether it is the first open of the day, week and month, whether it is a first install, whether it runs on iOS, Android or the web, and the player's date, which says which puzzle they are on.</li>
 <li>When you finish the daily word: the date and how many tries it took (or that it got away).</li>
 </ul>
-<p>The server only adds one to a few counters. No identifier is sent or stored: no cookies, no request logs, no IP address and no user agent. This page reads your time zone from your connection to pick "today" and does not keep it. Both counts can be turned off in the app's Stats tab.</p></section>
+<p>The server only adds one to a few counters. No identifier is sent or stored: no cookies, no request logs, no IP address and no user agent. This page uses your connection's time zone only to pick which puzzle to show, and keeps nothing. Both counts can be turned off in the app's Stats tab.</p></section>
 <section class="plate"><h2>Honest limits</h2>
 <ul>
 <li>Counts are per device or browser, not per person.</li>
 <li>A cleared browser counts again as a new install.</li>
-<li>Your time zone is a guess from your connection, so a VPN can show another place's day.</li>
-<li>Counts from before this change, and from apps not yet updated, use the server's clock instead of the player's, so those days can be off by one.</li>
 <li>Anyone can send fake counts, so treat the numbers as rough.</li>
 </ul></section>
 <p><a href="${PRIVACY_URL}">Read the full privacy notes</a></p>

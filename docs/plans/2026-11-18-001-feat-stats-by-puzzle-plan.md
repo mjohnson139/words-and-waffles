@@ -1,7 +1,7 @@
 ---
 title: "feat: Name the stats page by puzzle, not by day"
 type: feat
-status: active
+status: completed
 date: 2026-11-18
 origin: docs/brainstorms/2026-11-18-stats-by-puzzle-requirements.md
 ---

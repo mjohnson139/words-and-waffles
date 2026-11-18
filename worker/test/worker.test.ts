@@ -209,7 +209,7 @@ describe('stats', () => {
     expect(html).toContain('A week of breakfasts');
   });
 
-  it('shows today\'s tries distribution and matches the JSON', async () => {
+  it("shows the viewer's puzzle's tries distribution and matches the JSON", async () => {
     const day = new Date().toISOString().slice(0, 10);
     await env.DB.batch(
       [['3', 4], ['4', 2], ['x', 1]].map(([g, n]) =>

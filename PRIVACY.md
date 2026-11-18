@@ -59,7 +59,7 @@ A short-lived rate limit sees the connecting IP address, so that fake counts can
 
 Cloudflare, which runs the server, necessarily sees the connecting IP address of every request, as any host does. We have turned off its analytics, and our server code never reads or stores the address except for the in-memory rate limit described above (and an optional edge rate-limit rule, whose security events Cloudflare may keep briefly).
 
-When someone opens the stats page (`/stats` or `/stats.json`), the server reads Cloudflare's guess of the viewer's time zone, which Cloudflare works out from the connection, to decide which day "today" is on that page. It is used for that one response and is never stored or logged. The game itself never sends it.
+When someone opens the stats page (`/stats` or `/stats.json`), the server reads Cloudflare's guess of the viewer's time zone, which Cloudflare works out from the connection, to decide which puzzle to show on that page. It is used for that one response and is never stored or logged. The game itself never sends it.
 
 ## The public numbers
 
@@ -69,7 +69,7 @@ The limits, stated honestly:
 
 - Counts are per device or browser, not per person.
 - Clearing a browser counts it again.
-- The stats page shows the day for the viewer's time zone. That zone is Cloudflare's guess from the connection, so a VPN can show another place's day.
+- The stats page shows the puzzle for the viewer's date, worked out from Cloudflare's guess of their time zone, so a VPN can show another place's puzzle.
 - Counts from before this change, from app versions that do not send the date yet, and from devices whose clock is more than a day off are filed by the server's clock (UTC), not the player's, so those days can be off by one.
 - A result can be counted twice: if the answer is slow to come back, the app tries again on the next launch, and restoring a backup on a new device sends today's result again.
 - Anyone can send fake counts.
